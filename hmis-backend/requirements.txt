@@ -1,0 +1,31 @@
+# Framework Web
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.6
+# Base de Datos
+sqlalchemy[asyncio]>=2.0.25
+asyncpg>=0.29.0
+alembic>=1.13.0
+# Validacion y Serializacion
+pydantic>=2.6.0
+pydantic-settings>=2.1.0
+email-validator>=2.1.0
+# Autenticacion y Seguridad
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+argon2-cffi>=23.1.0
+# Cache y Colas
+redis>=5.0.0
+# HTTP Client
+httpx>=0.26.0
+# Utilidades
+python-dateutil>=2.8.2
+pytz>=2024.1
+babel>=2.14.0
+# Busqueda
+meilisearch>=0.31.0
+# Almacenamiento
+boto3>=1.34.0
+# Monitoreo
+sentry-sdk[fastapi]>=1.40.0
+prometheus-client>=0.20.0
