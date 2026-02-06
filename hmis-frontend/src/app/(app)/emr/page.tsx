@@ -1,173 +1,264 @@
 'use client';
 
-import { useState } from 'react';
-import Link from 'next/link';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, CardHeader } from '@/components/ui/card';
+import { api } from '@/lib/api';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge, StatusBadge } from '@/components/ui/badge';
+import { Badge } from '@/components/ui/badge';
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { Modal } from '@/components/ui/modal';
 import { Input, Select, Textarea } from '@/components/ui/input';
 import {
   Plus,
   FileText,
-  Stethoscope,
-  AlertTriangle,
   Clock,
   CheckCircle2,
+  AlertTriangle,
 } from 'lucide-react';
 
 // ─── Types ──────────────────────────────────────────────
 
 interface Encounter {
   id: string;
-  patient: string;
-  provider: string;
-  type: string;
+  patient_id: string;
+  doctor_id: string;
+  encounter_type: string;
   status: string;
-  date: string;
-  complaint: string;
-  diagnosis?: string;
+  reason: string | null;
+  disposition: string | null;
+  patient_name: string | null;
+  doctor_name: string | null;
+  created_at: string;
+  completed_at: string | null;
 }
 
-// ─── Mock Data ──────────────────────────────────────────
+interface EncountersResponse {
+  items: Encounter[];
+  total: number;
+}
 
-const encounters: Encounter[] = [
-  {
-    id: 'enc-001',
-    patient: 'Juan Perez',
-    provider: 'Dr. Martinez',
-    type: 'ambulatorio',
-    status: 'completada',
-    date: '06/02/2026 08:00',
-    complaint: 'Dolor de cabeza persistente',
-    diagnosis: 'Cefalea tensional (G44.2)',
-  },
-  {
-    id: 'enc-002',
-    patient: 'Maria Rodriguez',
-    provider: 'Dr. Martinez',
-    type: 'ambulatorio',
-    status: 'en_progreso',
-    date: '06/02/2026 08:30',
-    complaint: 'Control de hipertension',
-  },
-  {
-    id: 'enc-003',
-    patient: 'Carlos Gomez',
-    provider: 'Dra. Lopez',
-    type: 'emergencia',
-    status: 'en_progreso',
-    date: '06/02/2026 09:00',
-    complaint: 'Dolor abdominal agudo',
-  },
-  {
-    id: 'enc-004',
-    patient: 'Ana Gonzalez',
-    provider: 'Dr. Martinez',
-    type: 'ambulatorio',
-    status: 'completada',
-    date: '05/02/2026 14:00',
-    complaint: 'Infeccion urinaria',
-    diagnosis: 'Cistitis aguda (N30.0)',
-  },
-  {
-    id: 'enc-005',
-    patient: 'Pedro Sanchez',
-    provider: 'Dra. Lopez',
-    type: 'ambulatorio',
-    status: 'completada',
-    date: '05/02/2026 10:00',
-    complaint: 'Control diabetico',
-    diagnosis: 'DM Tipo 2 controlada (E11.9)',
-  },
-  {
-    id: 'enc-006',
-    patient: 'Laura Diaz',
-    provider: 'Dr. Martinez',
-    type: 'hospitalizacion',
-    status: 'en_progreso',
-    date: '04/02/2026 16:00',
-    complaint: 'Neumonia adquirida en comunidad',
-    diagnosis: 'Neumonia (J18.9)',
-  },
-];
+// ─── Status & Type Config ───────────────────────────────
+
+const statusLabels: Record<string, string> = {
+  in_progress: 'En Progreso',
+  completed: 'Completado',
+  cancelled: 'Cancelado',
+};
+
+const statusVariants: Record<string, 'primary' | 'success' | 'default'> = {
+  in_progress: 'primary',
+  completed: 'success',
+  cancelled: 'default',
+};
 
 const typeConfig: Record<string, { label: string; variant: 'primary' | 'danger' | 'secondary' }> = {
-  ambulatorio: { label: 'Ambulatorio', variant: 'primary' },
-  emergencia: { label: 'Emergencia', variant: 'danger' },
-  hospitalizacion: { label: 'Hospitalizacion', variant: 'secondary' },
+  ambulatory: { label: 'Ambulatorio', variant: 'primary' },
+  emergency: { label: 'Emergencia', variant: 'danger' },
+  inpatient: { label: 'Hospitalizacion', variant: 'secondary' },
 };
+
+// ─── Helpers ────────────────────────────────────────────
+
+function formatDate(dateStr: string): string {
+  try {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('es-DO', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return dateStr;
+  }
+}
+
+function extractItems<T>(data: unknown): T[] {
+  if (Array.isArray(data)) return data;
+  if (data && typeof data === 'object' && 'items' in data) {
+    return (data as { items: T[] }).items;
+  }
+  return [];
+}
 
 // ─── Page ───────────────────────────────────────────────
 
 export default function EMRPage() {
   const router = useRouter();
+
+  // Data state
+  const [encounters, setEncounters] = useState<Encounter[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Filters
+  const [statusFilter, setStatusFilter] = useState('');
+  const [page, setPage] = useState(1);
+
+  // KPIs
+  const [kpis, setKpis] = useState({ today: 0, inProgress: 0, completed: 0 });
+
+  // New encounter modal
   const [showNewModal, setShowNewModal] = useState(false);
+  const [newPatientId, setNewPatientId] = useState('');
+  const [newType, setNewType] = useState('');
+  const [newReason, setNewReason] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  // ─── Data Fetching ──────────────────────────────────────
+
+  const fetchEncounters = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params: Record<string, string | number | undefined> = {
+        page,
+        page_size: 50,
+      };
+      if (statusFilter) {
+        params.status = statusFilter;
+      }
+
+      const data = await api.get<EncountersResponse>('/emr/encounters', params);
+      const items = extractItems<Encounter>(data);
+      setEncounters(items);
+
+      // Compute KPIs from fetched data
+      const today = new Date().toISOString().slice(0, 10);
+      const todayCount = items.filter(
+        (e) => e.created_at && e.created_at.startsWith(today)
+      ).length;
+      const inProgressCount = items.filter(
+        (e) => e.status === 'in_progress'
+      ).length;
+      const completedCount = items.filter(
+        (e) => e.status === 'completed'
+      ).length;
+      setKpis({
+        today: todayCount,
+        inProgress: inProgressCount,
+        completed: completedCount,
+      });
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Error al cargar encuentros'
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [page, statusFilter]);
+
+  useEffect(() => {
+    fetchEncounters();
+  }, [fetchEncounters]);
+
+  // ─── Create Encounter ─────────────────────────────────
+
+  const handleCreateEncounter = useCallback(async () => {
+    if (!newPatientId || !newType) return;
+    setCreating(true);
+    setCreateError(null);
+    try {
+      const created = await api.post<Encounter>('/emr/encounters', {
+        patient_id: newPatientId,
+        encounter_type: newType,
+        reason: newReason || null,
+      });
+      setShowNewModal(false);
+      setNewPatientId('');
+      setNewType('');
+      setNewReason('');
+      router.push(`/emr/${created.id}`);
+    } catch (err) {
+      setCreateError(
+        err instanceof Error ? err.message : 'Error al crear encuentro'
+      );
+    } finally {
+      setCreating(false);
+    }
+  }, [newPatientId, newType, newReason, router]);
+
+  const handleCloseModal = useCallback(() => {
+    setShowNewModal(false);
+    setCreateError(null);
+    setNewPatientId('');
+    setNewType('');
+    setNewReason('');
+  }, []);
+
+  // ─── Table Columns ──────────────────────────────────────
 
   const columns: Column<Encounter>[] = [
     {
-      key: 'date',
+      key: 'created_at',
       header: 'Fecha',
       sortable: true,
-      width: '150px',
-      render: (row) => <span className="font-mono text-xs">{row.date}</span>,
-    },
-    {
-      key: 'patient',
-      header: 'Paciente',
-      sortable: true,
+      width: '160px',
       render: (row) => (
-        <span className="font-medium text-neutral-900">{row.patient}</span>
+        <span className="font-mono text-xs">{formatDate(row.created_at)}</span>
       ),
     },
     {
-      key: 'provider',
-      header: 'Proveedor',
+      key: 'patient_name',
+      header: 'Paciente',
       sortable: true,
-      render: (row) => <span className="text-neutral-600">{row.provider}</span>,
+      render: (row) => (
+        <span className="font-medium text-neutral-900">
+          {row.patient_name || '---'}
+        </span>
+      ),
     },
     {
-      key: 'type',
+      key: 'doctor_name',
+      header: 'Proveedor',
+      sortable: true,
+      render: (row) => (
+        <span className="text-neutral-600">{row.doctor_name || '---'}</span>
+      ),
+    },
+    {
+      key: 'encounter_type',
       header: 'Tipo',
       render: (row) => {
-        const config = typeConfig[row.type];
+        const config = typeConfig[row.encounter_type];
         return config ? (
           <Badge variant={config.variant} size="sm">
             {config.label}
           </Badge>
         ) : (
-          row.type
+          <span className="text-neutral-600">{row.encounter_type}</span>
         );
       },
     },
     {
-      key: 'complaint',
+      key: 'reason',
       header: 'Motivo de Consulta',
       render: (row) => (
         <span className="text-neutral-600 text-sm truncate max-w-xs block">
-          {row.complaint}
+          {row.reason || '---'}
         </span>
       ),
     },
     {
-      key: 'diagnosis',
-      header: 'Diagnostico',
-      render: (row) =>
-        row.diagnosis ? (
-          <span className="text-neutral-700 text-xs">{row.diagnosis}</span>
-        ) : (
-          <span className="text-neutral-400 text-xs italic">Pendiente</span>
-        ),
-    },
-    {
       key: 'status',
       header: 'Estado',
-      width: '120px',
-      render: (row) => <StatusBadge status={row.status} />,
+      width: '140px',
+      render: (row) => {
+        const variant = statusVariants[row.status] || 'default';
+        const label = statusLabels[row.status] || row.status;
+        return (
+          <Badge variant={variant} dot size="md">
+            {label}
+          </Badge>
+        );
+      },
     },
   ];
+
+  // ─── Render ───────────────────────────────────────────
 
   return (
     <div className="space-y-6">
@@ -175,7 +266,9 @@ export default function EMRPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="page-title">Historia Clinica Electronica</h1>
-          <p className="page-subtitle">Encuentros clinicos y documentacion medica</p>
+          <p className="page-subtitle">
+            Encuentros clinicos y documentacion medica
+          </p>
         </div>
         <Button
           size="sm"
@@ -186,16 +279,35 @@ export default function EMRPage() {
         </Button>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* KPI Summary Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {[
-          { label: 'Total Encuentros', value: '6', icon: FileText, color: 'text-primary-600 bg-primary-50' },
-          { label: 'En Progreso', value: '3', icon: Clock, color: 'text-yellow-600 bg-yellow-50' },
-          { label: 'Completados', value: '3', icon: CheckCircle2, color: 'text-green-600 bg-green-50' },
-          { label: 'Emergencias', value: '1', icon: AlertTriangle, color: 'text-red-600 bg-red-50' },
+          {
+            label: 'Encuentros Hoy',
+            value: String(kpis.today),
+            icon: FileText,
+            color: 'text-primary-600 bg-primary-50',
+          },
+          {
+            label: 'En Progreso',
+            value: String(kpis.inProgress),
+            icon: Clock,
+            color: 'text-yellow-600 bg-yellow-50',
+          },
+          {
+            label: 'Completados',
+            value: String(kpis.completed),
+            icon: CheckCircle2,
+            color: 'text-green-600 bg-green-50',
+          },
         ].map(({ label, value, icon: Icon, color }) => (
-          <div key={label} className="bg-white rounded-lg border border-neutral-200 p-3 flex items-center gap-3">
-            <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${color}`}>
+          <div
+            key={label}
+            className="bg-white rounded-lg border border-neutral-200 p-3 flex items-center gap-3"
+          >
+            <div
+              className={`w-9 h-9 rounded-lg flex items-center justify-center ${color}`}
+            >
               <Icon className="w-4 h-4" />
             </div>
             <div>
@@ -206,6 +318,35 @@ export default function EMRPage() {
         ))}
       </div>
 
+      {/* Status Filter */}
+      <div className="flex items-center gap-3">
+        <Select
+          options={[
+            { value: '', label: 'Todos los estados' },
+            { value: 'in_progress', label: 'En Progreso' },
+            { value: 'completed', label: 'Completado' },
+            { value: 'cancelled', label: 'Cancelado' },
+          ]}
+          value={statusFilter}
+          onChange={(e) => {
+            setStatusFilter(e.target.value);
+            setPage(1);
+          }}
+          className="w-52"
+        />
+      </div>
+
+      {/* Error Banner */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
+          <span className="text-sm text-red-700 flex-1">{error}</span>
+          <Button variant="ghost" size="sm" onClick={fetchEncounters}>
+            Reintentar
+          </Button>
+        </div>
+      )}
+
       {/* Encounters Table */}
       <Card padding="none">
         <DataTable
@@ -214,8 +355,9 @@ export default function EMRPage() {
           keyExtractor={(row) => row.id}
           pageSize={10}
           searchable
-          searchPlaceholder="Buscar por paciente, proveedor o diagnostico..."
+          searchPlaceholder="Buscar por paciente, proveedor o motivo..."
           emptyMessage="No se encontraron encuentros clinicos."
+          loading={loading}
           onRowClick={(row) => router.push(`/emr/${row.id}`)}
           className="p-4"
         />
@@ -224,49 +366,59 @@ export default function EMRPage() {
       {/* New Encounter Modal */}
       <Modal
         isOpen={showNewModal}
-        onClose={() => setShowNewModal(false)}
+        onClose={handleCloseModal}
         title="Iniciar Nuevo Encuentro Clinico"
-        description="Seleccione el paciente y tipo de encuentro para comenzar."
+        description="Ingrese los datos para iniciar un nuevo encuentro."
         size="lg"
         footer={
           <>
-            <Button variant="outline" onClick={() => setShowNewModal(false)}>
+            <Button variant="outline" onClick={handleCloseModal}>
               Cancelar
             </Button>
-            <Button onClick={() => setShowNewModal(false)}>
-              Iniciar Encuentro
+            <Button
+              onClick={handleCreateEncounter}
+              disabled={creating || !newPatientId || !newType}
+            >
+              {creating ? 'Creando...' : 'Iniciar Encuentro'}
             </Button>
           </>
         }
       >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Input label="Paciente" placeholder="Buscar paciente..." required />
-          <Select
-            label="Proveedor"
-            required
-            options={[
-              { value: 'dr-martinez', label: 'Dr. Martinez' },
-              { value: 'dra-lopez', label: 'Dra. Lopez' },
-            ]}
-            placeholder="Seleccionar proveedor"
-          />
-          <Select
-            label="Tipo de Encuentro"
-            required
-            options={[
-              { value: 'ambulatorio', label: 'Ambulatorio' },
-              { value: 'emergencia', label: 'Emergencia' },
-              { value: 'hospitalizacion', label: 'Hospitalizacion' },
-            ]}
-            placeholder="Seleccionar tipo"
-          />
-          <Input label="Fecha y Hora" type="datetime-local" required />
-          <div className="md:col-span-2">
-            <Textarea
-              label="Motivo de Consulta"
-              placeholder="Describa el motivo principal de la consulta..."
+        <div className="space-y-4">
+          {createError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
+              <span className="text-sm text-red-700">{createError}</span>
+            </div>
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              label="ID del Paciente"
+              placeholder="Ingrese el ID del paciente"
               required
+              value={newPatientId}
+              onChange={(e) => setNewPatientId(e.target.value)}
             />
+            <Select
+              label="Tipo de Encuentro"
+              required
+              options={[
+                { value: 'ambulatory', label: 'Ambulatorio' },
+                { value: 'emergency', label: 'Emergencia' },
+                { value: 'inpatient', label: 'Hospitalizacion' },
+              ]}
+              value={newType}
+              onChange={(e) => setNewType(e.target.value)}
+              placeholder="Seleccionar tipo"
+            />
+            <div className="md:col-span-2">
+              <Textarea
+                label="Motivo de Consulta"
+                placeholder="Describa el motivo principal de la consulta..."
+                value={newReason}
+                onChange={(e) => setNewReason(e.target.value)}
+              />
+            </div>
           </div>
         </div>
       </Modal>

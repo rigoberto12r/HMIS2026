@@ -1,14 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { DataTable, type Column } from '@/components/ui/data-table';
-import { Input } from '@/components/ui/input';
+import { Input, Select } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
-import { UserPlus, Search, Filter, Download, Users } from 'lucide-react';
+import { UserPlus, Search, Filter, Download, Users, Loader2, AlertTriangle } from 'lucide-react';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -17,144 +18,199 @@ interface Patient {
   mrn: string;
   first_name: string;
   last_name: string;
-  document_number: string;
+  date_of_birth: string;
   gender: string;
-  age: number;
-  phone: string;
-  email: string;
-  status: string;
-  insurance: string;
-  last_visit: string;
+  document_type: string;
+  document_number: string;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  blood_type: string | null;
+  insurance_provider: string | null;
+  insurance_number: string | null;
+  emergency_contact_name: string | null;
+  emergency_contact_phone: string | null;
+  is_active: boolean;
+  created_at: string;
 }
 
-// ─── Mock Data ──────────────────────────────────────────
+interface PaginatedResponse {
+  items: Patient[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
 
-const mockPatients: Patient[] = [
-  {
-    id: '1',
-    mrn: 'HMIS-00000001',
-    first_name: 'Juan',
-    last_name: 'Perez Garcia',
-    document_number: '001-1234567-8',
-    gender: 'M',
-    age: 41,
-    phone: '809-555-0100',
-    email: 'juan.perez@email.com',
-    status: 'activo',
-    insurance: 'ARS Humano',
-    last_visit: '06/02/2026',
-  },
-  {
-    id: '2',
-    mrn: 'HMIS-00000002',
-    first_name: 'Maria',
-    last_name: 'Rodriguez Mejia',
-    document_number: '001-9876543-2',
-    gender: 'F',
-    age: 35,
-    phone: '829-555-0200',
-    email: 'maria.rodriguez@email.com',
-    status: 'activo',
-    insurance: 'ARS Universal',
-    last_visit: '05/02/2026',
-  },
-  {
-    id: '3',
-    mrn: 'HMIS-00000003',
-    first_name: 'Carlos',
-    last_name: 'Martinez Lopez',
-    document_number: '402-5551234-5',
-    gender: 'M',
-    age: 58,
-    phone: '809-555-0300',
-    email: 'carlos.martinez@email.com',
-    status: 'activo',
-    insurance: 'Senasa',
-    last_visit: '04/02/2026',
-  },
-  {
-    id: '4',
-    mrn: 'HMIS-00000004',
-    first_name: 'Ana',
-    last_name: 'Gonzalez Reyes',
-    document_number: '001-4445556-7',
-    gender: 'F',
-    age: 28,
-    phone: '849-555-0400',
-    email: 'ana.gonzalez@email.com',
-    status: 'activo',
-    insurance: 'ARS Humano',
-    last_visit: '03/02/2026',
-  },
-  {
-    id: '5',
-    mrn: 'HMIS-00000005',
-    first_name: 'Pedro',
-    last_name: 'Sanchez Diaz',
-    document_number: '001-7778889-0',
-    gender: 'M',
-    age: 67,
-    phone: '809-555-0500',
-    email: 'pedro.sanchez@email.com',
-    status: 'activo',
-    insurance: 'Senasa',
-    last_visit: '01/02/2026',
-  },
-  {
-    id: '6',
-    mrn: 'HMIS-00000006',
-    first_name: 'Laura',
-    last_name: 'Diaz Fernandez',
-    document_number: '001-3334445-6',
-    gender: 'F',
-    age: 45,
-    phone: '829-555-0600',
-    email: 'laura.diaz@email.com',
-    status: 'inactivo',
-    insurance: 'ARS Palic',
-    last_visit: '15/01/2026',
-  },
-  {
-    id: '7',
-    mrn: 'HMIS-00000007',
-    first_name: 'Roberto',
-    last_name: 'Hernandez Cruz',
-    document_number: '001-1112223-4',
-    gender: 'M',
-    age: 52,
-    phone: '809-555-0700',
-    email: 'roberto.hernandez@email.com',
-    status: 'activo',
-    insurance: 'ARS Universal',
-    last_visit: '06/02/2026',
-  },
-  {
-    id: '8',
-    mrn: 'HMIS-00000008',
-    first_name: 'Carmen',
-    last_name: 'Reyes Castillo',
-    document_number: '001-8889990-1',
-    gender: 'F',
-    age: 33,
-    phone: '849-555-0800',
-    email: 'carmen.reyes@email.com',
-    status: 'activo',
-    insurance: 'ARS Humano',
-    last_visit: '05/02/2026',
-  },
+interface NewPatientForm {
+  first_name: string;
+  last_name: string;
+  date_of_birth: string;
+  gender: string;
+  document_type: string;
+  document_number: string;
+  email: string;
+  phone: string;
+  address: string;
+  blood_type: string;
+  insurance_provider: string;
+  insurance_number: string;
+}
+
+// ─── Helpers ────────────────────────────────────────────
+
+function calculateAge(dateOfBirth: string): number {
+  const dob = new Date(dateOfBirth);
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const monthDiff = today.getMonth() - dob.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+    age--;
+  }
+  return age;
+}
+
+const emptyForm: NewPatientForm = {
+  first_name: '',
+  last_name: '',
+  date_of_birth: '',
+  gender: '',
+  document_type: 'cedula',
+  document_number: '',
+  email: '',
+  phone: '',
+  address: '',
+  blood_type: '',
+  insurance_provider: '',
+  insurance_number: '',
+};
+
+const genderOptions = [
+  { value: '', label: 'Todos los generos' },
+  { value: 'M', label: 'Masculino' },
+  { value: 'F', label: 'Femenino' },
+];
+
+const genderFormOptions = [
+  { value: 'M', label: 'Masculino' },
+  { value: 'F', label: 'Femenino' },
+];
+
+const bloodTypeOptions = [
+  { value: '', label: 'Seleccionar' },
+  { value: 'A+', label: 'A+' },
+  { value: 'A-', label: 'A-' },
+  { value: 'B+', label: 'B+' },
+  { value: 'B-', label: 'B-' },
+  { value: 'AB+', label: 'AB+' },
+  { value: 'AB-', label: 'AB-' },
+  { value: 'O+', label: 'O+' },
+  { value: 'O-', label: 'O-' },
+];
+
+const documentTypeOptions = [
+  { value: 'cedula', label: 'Cedula' },
+  { value: 'pasaporte', label: 'Pasaporte' },
+  { value: 'otro', label: 'Otro' },
 ];
 
 // ─── Page ───────────────────────────────────────────────
 
 export default function PatientsPage() {
   const router = useRouter();
-  const [showNewModal, setShowNewModal] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<string>('todos');
 
-  const filteredPatients =
-    statusFilter === 'todos'
-      ? mockPatients
-      : mockPatients.filter((p) => p.status === statusFilter);
+  // Data state
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+
+  // Filter state
+  const [search, setSearch] = useState('');
+  const [genderFilter, setGenderFilter] = useState('');
+
+  // UI state
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showNewModal, setShowNewModal] = useState(false);
+  const [formData, setFormData] = useState<NewPatientForm>(emptyForm);
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  // ─── Fetch Patients ─────────────────────────────────────
+
+  const fetchPatients = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await api.get<PaginatedResponse>('/patients', {
+        page,
+        page_size: pageSize,
+        search: search || undefined,
+        gender: genderFilter || undefined,
+      });
+      setPatients(data.items);
+      setTotal(data.total);
+      setTotalPages(data.total_pages);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error al cargar pacientes';
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, search, genderFilter]);
+
+  useEffect(() => {
+    fetchPatients();
+  }, [fetchPatients]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [search, genderFilter]);
+
+  // ─── Create Patient ─────────────────────────────────────
+
+  const handleCreatePatient = useCallback(async () => {
+    setSubmitting(true);
+    setFormError(null);
+    try {
+      await api.post<Patient>('/patients', {
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        date_of_birth: formData.date_of_birth,
+        gender: formData.gender,
+        document_type: formData.document_type,
+        document_number: formData.document_number,
+        email: formData.email || null,
+        phone: formData.phone || null,
+        address: formData.address || null,
+        blood_type: formData.blood_type || null,
+        insurance_provider: formData.insurance_provider || null,
+        insurance_number: formData.insurance_number || null,
+      });
+      setShowNewModal(false);
+      setFormData(emptyForm);
+      fetchPatients();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error al crear paciente';
+      setFormError(message);
+    } finally {
+      setSubmitting(false);
+    }
+  }, [formData, fetchPatients]);
+
+  const handleFormChange = useCallback((field: keyof NewPatientForm, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  }, []);
+
+  // ─── Stats ──────────────────────────────────────────────
+
+  const activeCount = patients.filter((p) => p.is_active).length;
+  const withInsuranceCount = patients.filter((p) => p.insurance_provider).length;
+
+  // ─── Table Columns ──────────────────────────────────────
 
   const columns: Column<Patient>[] = [
     {
@@ -175,7 +231,7 @@ export default function PatientsPage() {
           <p className="font-medium text-neutral-900">
             {row.first_name} {row.last_name}
           </p>
-          <p className="text-2xs text-neutral-400">{row.email}</p>
+          <p className="text-2xs text-neutral-400">{row.email || '---'}</p>
         </div>
       ),
     },
@@ -186,13 +242,13 @@ export default function PatientsPage() {
       render: (row) => <span className="font-mono text-xs">{row.document_number}</span>,
     },
     {
-      key: 'age',
+      key: 'date_of_birth',
       header: 'Edad',
       sortable: true,
       width: '80px',
       render: (row) => (
         <span>
-          {row.age} <span className="text-neutral-400">a.</span>
+          {calculateAge(row.date_of_birth)} <span className="text-neutral-400">a.</span>
         </span>
       ),
     },
@@ -209,28 +265,36 @@ export default function PatientsPage() {
     {
       key: 'phone',
       header: 'Telefono',
-      render: (row) => <span className="text-neutral-600">{row.phone}</span>,
+      render: (row) => <span className="text-neutral-600">{row.phone || '---'}</span>,
     },
     {
-      key: 'insurance',
+      key: 'insurance_provider',
       header: 'Seguro',
       sortable: true,
-      render: (row) => <span className="text-neutral-600 text-xs">{row.insurance}</span>,
+      render: (row) => (
+        <span className="text-neutral-600 text-xs">{row.insurance_provider || '---'}</span>
+      ),
     },
     {
-      key: 'status',
+      key: 'is_active',
       header: 'Estado',
       width: '100px',
-      render: (row) => <StatusBadge status={row.status} />,
+      render: (row) => <StatusBadge status={row.is_active ? 'activo' : 'inactivo'} />,
     },
     {
-      key: 'last_visit',
-      header: 'Ultima Visita',
+      key: 'created_at',
+      header: 'Registrado',
       sortable: true,
       width: '110px',
-      render: (row) => <span className="text-neutral-500 text-xs">{row.last_visit}</span>,
+      render: (row) => (
+        <span className="text-neutral-500 text-xs">
+          {new Date(row.created_at).toLocaleDateString('es-DO')}
+        </span>
+      ),
     },
   ];
+
+  // ─── Render ─────────────────────────────────────────────
 
   return (
     <div className="space-y-6">
@@ -239,7 +303,7 @@ export default function PatientsPage() {
         <div>
           <h1 className="page-title">Pacientes</h1>
           <p className="page-subtitle">
-            Registro y gestion de pacientes ({mockPatients.length} registrados)
+            Registro y gestion de pacientes ({total} registrados)
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -263,19 +327,21 @@ export default function PatientsPage() {
             <Input
               placeholder="Buscar por nombre, MRN o documento..."
               leftIcon={<Search className="w-4 h-4" />}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
             />
           </div>
           <div className="flex items-center gap-2">
             <Filter className="w-4 h-4 text-neutral-400" />
             <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              value={genderFilter}
+              onChange={(e) => setGenderFilter(e.target.value)}
               className="form-input text-sm py-1.5 w-auto"
-              aria-label="Filtrar por estado"
+              aria-label="Filtrar por genero"
             >
-              <option value="todos">Todos los estados</option>
-              <option value="activo">Activos</option>
-              <option value="inactivo">Inactivos</option>
+              <option value="">Todos los generos</option>
+              <option value="M">Masculino</option>
+              <option value="F">Femenino</option>
             </select>
           </div>
         </div>
@@ -284,10 +350,10 @@ export default function PatientsPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Total Pacientes', value: '8', icon: Users, color: 'text-primary-600' },
-          { label: 'Activos', value: '7', icon: Users, color: 'text-green-600' },
-          { label: 'Nuevos (mes)', value: '3', icon: UserPlus, color: 'text-secondary-600' },
-          { label: 'Con Seguro', value: '8', icon: Users, color: 'text-blue-600' },
+          { label: 'Total Pacientes', value: String(total), icon: Users, color: 'text-primary-600' },
+          { label: 'Activos', value: String(activeCount), icon: Users, color: 'text-green-600' },
+          { label: 'En esta pagina', value: String(patients.length), icon: UserPlus, color: 'text-secondary-600' },
+          { label: 'Con Seguro', value: String(withInsuranceCount), icon: Users, color: 'text-blue-600' },
         ].map(({ label, value, icon: Icon, color }) => (
           <div
             key={label}
@@ -302,46 +368,159 @@ export default function PatientsPage() {
         ))}
       </div>
 
+      {/* Error state */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+          <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-red-800">Error al cargar pacientes</p>
+            <p className="text-sm text-red-600">{error}</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={fetchPatients}>
+            Reintentar
+          </Button>
+        </div>
+      )}
+
       {/* Data Table */}
       <Card padding="none">
         <DataTable
           columns={columns}
-          data={filteredPatients}
+          data={patients}
           keyExtractor={(row) => row.id}
-          pageSize={10}
+          pageSize={pageSize}
           searchable
           searchPlaceholder="Buscar en tabla..."
           emptyMessage="No se encontraron pacientes con los filtros seleccionados."
+          loading={loading}
           onRowClick={(row) => router.push(`/patients/${row.id}`)}
           className="p-4"
         />
       </Card>
 
-      {/* New Patient Modal (stub) */}
+      {/* New Patient Modal */}
       <Modal
         isOpen={showNewModal}
-        onClose={() => setShowNewModal(false)}
+        onClose={() => {
+          setShowNewModal(false);
+          setFormData(emptyForm);
+          setFormError(null);
+        }}
         title="Registrar Nuevo Paciente"
         description="Complete los datos del paciente para crear su expediente."
         size="lg"
         footer={
           <>
-            <Button variant="outline" onClick={() => setShowNewModal(false)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowNewModal(false);
+                setFormData(emptyForm);
+                setFormError(null);
+              }}
+              disabled={submitting}
+            >
               Cancelar
             </Button>
-            <Button onClick={() => setShowNewModal(false)}>Guardar Paciente</Button>
+            <Button
+              onClick={handleCreatePatient}
+              disabled={submitting || !formData.first_name || !formData.last_name || !formData.date_of_birth || !formData.gender || !formData.document_number}
+              leftIcon={submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : undefined}
+            >
+              {submitting ? 'Guardando...' : 'Guardar Paciente'}
+            </Button>
           </>
         }
       >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Input label="Nombre" placeholder="Nombre del paciente" required />
-          <Input label="Apellido" placeholder="Apellido del paciente" required />
-          <Input label="Cedula / Documento" placeholder="000-0000000-0" required />
-          <Input label="Fecha de Nacimiento" type="date" required />
-          <Input label="Telefono" placeholder="809-000-0000" />
-          <Input label="Correo Electronico" type="email" placeholder="correo@ejemplo.com" />
-          <div className="md:col-span-2">
-            <Input label="Direccion" placeholder="Calle, numero, ciudad" />
+        <div className="space-y-4">
+          {formError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <p className="text-sm text-red-700">{formError}</p>
+            </div>
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              label="Nombre"
+              placeholder="Nombre del paciente"
+              required
+              value={formData.first_name}
+              onChange={(e) => handleFormChange('first_name', e.target.value)}
+            />
+            <Input
+              label="Apellido"
+              placeholder="Apellido del paciente"
+              required
+              value={formData.last_name}
+              onChange={(e) => handleFormChange('last_name', e.target.value)}
+            />
+            <Select
+              label="Tipo de Documento"
+              options={documentTypeOptions}
+              required
+              value={formData.document_type}
+              onChange={(e) => handleFormChange('document_type', e.target.value)}
+            />
+            <Input
+              label="Numero de Documento"
+              placeholder="000-0000000-0"
+              required
+              value={formData.document_number}
+              onChange={(e) => handleFormChange('document_number', e.target.value)}
+            />
+            <Input
+              label="Fecha de Nacimiento"
+              type="date"
+              required
+              value={formData.date_of_birth}
+              onChange={(e) => handleFormChange('date_of_birth', e.target.value)}
+            />
+            <Select
+              label="Genero"
+              options={genderFormOptions}
+              placeholder="Seleccionar genero"
+              required
+              value={formData.gender}
+              onChange={(e) => handleFormChange('gender', e.target.value)}
+            />
+            <Input
+              label="Telefono"
+              placeholder="809-000-0000"
+              value={formData.phone}
+              onChange={(e) => handleFormChange('phone', e.target.value)}
+            />
+            <Input
+              label="Correo Electronico"
+              type="email"
+              placeholder="correo@ejemplo.com"
+              value={formData.email}
+              onChange={(e) => handleFormChange('email', e.target.value)}
+            />
+            <Select
+              label="Grupo Sanguineo"
+              options={bloodTypeOptions}
+              value={formData.blood_type}
+              onChange={(e) => handleFormChange('blood_type', e.target.value)}
+            />
+            <Input
+              label="Aseguradora"
+              placeholder="Nombre de la aseguradora"
+              value={formData.insurance_provider}
+              onChange={(e) => handleFormChange('insurance_provider', e.target.value)}
+            />
+            <Input
+              label="Numero de Poliza"
+              placeholder="Numero de poliza"
+              value={formData.insurance_number}
+              onChange={(e) => handleFormChange('insurance_number', e.target.value)}
+            />
+            <div className="md:col-span-2">
+              <Input
+                label="Direccion"
+                placeholder="Calle, numero, ciudad"
+                value={formData.address}
+                onChange={(e) => handleFormChange('address', e.target.value)}
+              />
+            </div>
           </div>
         </div>
       </Modal>
