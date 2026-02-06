@@ -275,3 +275,157 @@ class InsurerContract(Base, BaseEntity):
     adjudication_rules_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     status: Mapped[str] = mapped_column(String(20), default="active")
+
+
+# =============================================
+# Contabilidad General (General Ledger)
+# =============================================
+
+
+class AccountCategory:
+    """Categorias de cuentas contables."""
+    ASSET = "activo"
+    LIABILITY = "pasivo"
+    EQUITY = "patrimonio"
+    REVENUE = "ingreso"
+    EXPENSE = "gasto"
+
+
+class Account(Base, BaseEntity):
+    """
+    Cuenta del plan contable (Chart of Accounts).
+    Estructura jerarquica con codigo padre para subcuentas.
+    """
+
+    __tablename__ = "accounts"
+
+    code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    category: Mapped[str] = mapped_column(
+        String(30), nullable=False
+    )  # activo, pasivo, patrimonio, ingreso, gasto
+    account_type: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # cuentas_por_cobrar, caja, banco, ingreso_servicios, etc.
+    parent_code: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
+    is_detail: Mapped[bool] = mapped_column(default=True)  # Solo las de detalle aceptan movimientos
+    normal_balance: Mapped[str] = mapped_column(
+        String(10), default="debit"
+    )  # debit o credit
+    currency: Mapped[str] = mapped_column(String(3), default="DOP")
+
+    __table_args__ = (
+        Index("ix_accounts_category", "category"),
+    )
+
+
+class JournalEntry(Base, BaseEntity):
+    """
+    Asiento contable de partida doble.
+    Todo movimiento financiero genera un asiento con debitos = creditos.
+    """
+
+    __tablename__ = "journal_entries"
+
+    entry_number: Mapped[str] = mapped_column(String(30), unique=True, nullable=False, index=True)
+    entry_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    description: Mapped[str] = mapped_column(String(500), nullable=False)
+    reference_type: Mapped[str | None] = mapped_column(
+        String(30), nullable=True
+    )  # invoice, payment, credit_note, adjustment
+    reference_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    total_debit: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
+    total_credit: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(20), default="posted"
+    )  # draft, posted, reversed
+    reversed_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    reversal_of: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    posted_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+
+    # Relaciones
+    lines: Mapped[list["JournalEntryLine"]] = relationship(
+        back_populates="journal_entry", cascade="all, delete-orphan"
+    )
+
+
+class JournalEntryLine(Base, UUIDMixin, TimestampMixin):
+    """
+    Linea de asiento contable.
+    Cada linea afecta una cuenta con debito o credito (nunca ambos).
+    """
+
+    __tablename__ = "journal_entry_lines"
+
+    journal_entry_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("journal_entries.id"), nullable=False
+    )
+    account_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("accounts.id"), nullable=False
+    )
+    description: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    debit: Mapped[float] = mapped_column(Numeric(14, 2), default=0.0)
+    credit: Mapped[float] = mapped_column(Numeric(14, 2), default=0.0)
+
+    # Relaciones
+    journal_entry: Mapped["JournalEntry"] = relationship(back_populates="lines")
+    account: Mapped["Account"] = relationship()
+
+
+class CreditNote(Base, BaseEntity):
+    """
+    Nota de credito vinculada a factura original.
+    Genera NCF tipo 04 y asiento contable de reversa.
+    """
+
+    __tablename__ = "credit_notes"
+
+    credit_note_number: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    fiscal_number: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
+    original_invoice_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("invoices.id"), nullable=False
+    )
+    patient_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False, index=True
+    )
+    reason: Mapped[str] = mapped_column(String(500), nullable=False)
+
+    subtotal: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
+    tax_total: Mapped[float] = mapped_column(Numeric(14, 2), default=0.0)
+    grand_total: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), default="DOP")
+
+    status: Mapped[str] = mapped_column(
+        String(20), default="issued"
+    )  # issued, applied, cancelled
+
+    # Datos fiscales
+    country_code: Mapped[str] = mapped_column(String(2), default="DO")
+    fiscal_response: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+
+    # Relacion con factura original
+    original_invoice: Mapped["Invoice"] = relationship()
+    lines: Mapped[list["CreditNoteLine"]] = relationship(
+        back_populates="credit_note", cascade="all, delete-orphan"
+    )
+
+
+class CreditNoteLine(Base, UUIDMixin, TimestampMixin):
+    """Linea de detalle de nota de credito."""
+
+    __tablename__ = "credit_note_lines"
+
+    credit_note_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("credit_notes.id"), nullable=False
+    )
+    original_invoice_line_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
+    description: Mapped[str] = mapped_column(String(300), nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, default=1)
+    unit_price: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    tax: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
+    line_total: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+
+    credit_note: Mapped["CreditNote"] = relationship(back_populates="lines")

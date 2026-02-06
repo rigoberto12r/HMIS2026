@@ -234,6 +234,14 @@ class InvoiceService:
             user_id=str(created_by) if created_by else None,
         ))
 
+        # Generar asiento contable automatico
+        try:
+            from app.modules.billing.accounting_service import AccountingService
+            accounting = AccountingService(self.db)
+            await accounting.record_invoice_entry(invoice, posted_by=created_by)
+        except Exception:
+            pass  # Plan contable no inicializado, continuar sin GL
+
         return invoice
 
     async def get_invoice(self, invoice_id: uuid.UUID) -> Invoice | None:
@@ -347,6 +355,15 @@ class PaymentService:
             user_id=str(received_by) if received_by else None,
         ))
 
+        # Generar asiento contable automatico
+        if invoice:
+            try:
+                from app.modules.billing.accounting_service import AccountingService
+                accounting = AccountingService(self.db)
+                await accounting.record_payment_entry(payment, invoice, posted_by=received_by)
+            except Exception:
+                pass
+
         return payment
 
 
@@ -454,3 +471,172 @@ class InsuranceClaimService:
         result = await self.db.execute(stmt)
         count = (result.scalar() or 0) + 1
         return f"CLM-{count:08d}"
+
+
+class InvoiceVoidService:
+    """Servicio de anulacion de facturas."""
+
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    async def void_invoice(
+        self, invoice_id: uuid.UUID, reason: str,
+        voided_by: uuid.UUID | None = None,
+        tenant_id: str | None = None,
+    ) -> Invoice:
+        """
+        Anula una factura. Solo facturas en estado 'issued' o 'draft' pueden anularse.
+        Genera registro fiscal de anulacion (609) y reversa asiento contable.
+        """
+        stmt = (
+            select(Invoice)
+            .where(Invoice.id == invoice_id, Invoice.is_active == True)
+            .options(selectinload(Invoice.payments))
+        )
+        result = await self.db.execute(stmt)
+        invoice = result.scalar_one_or_none()
+
+        if not invoice:
+            raise ValueError("Factura no encontrada")
+        if invoice.status not in ("draft", "issued"):
+            raise ValueError(
+                f"No se puede anular factura en estado '{invoice.status}'. "
+                "Solo facturas en borrador o emitidas."
+            )
+        if invoice.payments and any(float(p.amount) > 0 for p in invoice.payments):
+            raise ValueError(
+                "No se puede anular factura con pagos registrados. "
+                "Primero reverse los pagos o emita una nota de credito."
+            )
+
+        # Registrar anulacion fiscal si tiene NCF
+        if invoice.fiscal_number and invoice.country_code:
+            try:
+                from app.integrations.fiscal.engine import get_fiscal_engine
+                engine = get_fiscal_engine(invoice.country_code)
+                fiscal_doc = await engine.cancel_invoice(invoice.fiscal_number, reason)
+                invoice.fiscal_response = invoice.fiscal_response or {}
+                invoice.fiscal_response["anulacion"] = {
+                    "status": fiscal_doc.status,
+                    "reason": reason,
+                    "date": datetime.now(timezone.utc).isoformat(),
+                }
+            except Exception:
+                pass  # Motor fiscal no disponible, continuar
+
+        # Reversar asiento contable si existe
+        try:
+            from app.modules.billing.accounting_service import AccountingService
+            from app.modules.billing.models import JournalEntry
+            accounting = AccountingService(self.db)
+            stmt_je = select(JournalEntry).where(
+                JournalEntry.reference_type == "invoice",
+                JournalEntry.reference_id == invoice.id,
+                JournalEntry.status == "posted",
+            )
+            je_result = await self.db.execute(stmt_je)
+            journal_entry = je_result.scalar_one_or_none()
+            if journal_entry:
+                await accounting.reverse_journal_entry(
+                    journal_entry.id, f"Anulacion factura: {reason}", posted_by=voided_by
+                )
+        except Exception:
+            pass
+
+        # Liberar cargos vinculados
+        line_stmt = select(InvoiceLine).where(InvoiceLine.invoice_id == invoice.id)
+        line_result = await self.db.execute(line_stmt)
+        for line in line_result.scalars().all():
+            if line.charge_item_id:
+                charge_stmt = select(ChargeItem).where(ChargeItem.id == line.charge_item_id)
+                charge_result = await self.db.execute(charge_stmt)
+                charge = charge_result.scalar_one_or_none()
+                if charge:
+                    charge.status = "pending"
+
+        invoice.status = "cancelled"
+        invoice.updated_by = voided_by
+        await self.db.flush()
+
+        return invoice
+
+
+class PaymentReversalService:
+    """Servicio de reversion de pagos."""
+
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    async def reverse_payment(
+        self, payment_id: uuid.UUID, reason: str,
+        reversed_by: uuid.UUID | None = None,
+    ) -> dict:
+        """
+        Reversa un pago: marca el pago como inactivo,
+        recalcula estado de la factura y reversa asiento contable.
+        """
+        stmt = select(Payment).where(Payment.id == payment_id, Payment.is_active == True)
+        result = await self.db.execute(stmt)
+        payment = result.scalar_one_or_none()
+
+        if not payment:
+            raise ValueError("Pago no encontrado")
+
+        # Desactivar el pago (soft delete)
+        payment.is_active = False
+        payment.deleted_at = datetime.now(timezone.utc)
+        payment.notes = (payment.notes or "") + f"\n[REVERSADO] {reason}"
+
+        # Recalcular estado de la factura
+        inv_stmt = (
+            select(Invoice)
+            .where(Invoice.id == payment.invoice_id)
+            .options(selectinload(Invoice.payments))
+        )
+        inv_result = await self.db.execute(inv_stmt)
+        invoice = inv_result.scalar_one_or_none()
+
+        new_status = "issued"
+        if invoice:
+            remaining_paid = sum(
+                float(p.amount) for p in invoice.payments
+                if p.is_active and p.id != payment_id
+            )
+            if remaining_paid >= float(invoice.grand_total):
+                new_status = "paid"
+            elif remaining_paid > 0:
+                new_status = "partial"
+            else:
+                new_status = "issued"
+            invoice.status = new_status
+            invoice.paid_date = None if new_status != "paid" else invoice.paid_date
+
+        # Reversar asiento contable del pago
+        try:
+            from app.modules.billing.accounting_service import AccountingService
+            from app.modules.billing.models import JournalEntry
+            accounting = AccountingService(self.db)
+            je_stmt = select(JournalEntry).where(
+                JournalEntry.reference_type == "payment",
+                JournalEntry.reference_id == payment_id,
+                JournalEntry.status == "posted",
+            )
+            je_result = await self.db.execute(je_stmt)
+            journal_entry = je_result.scalar_one_or_none()
+            if journal_entry:
+                await accounting.reverse_journal_entry(
+                    journal_entry.id, f"Reversion pago: {reason}", posted_by=reversed_by
+                )
+        except Exception:
+            pass
+
+        await self.db.flush()
+
+        return {
+            "original_payment_id": str(payment.id),
+            "reversal_amount": float(payment.amount),
+            "reason": reason,
+            "invoice_id": str(payment.invoice_id),
+            "new_invoice_status": new_status,
+            "mensaje": f"Pago de {float(payment.amount):.2f} reversado exitosamente",
+        }

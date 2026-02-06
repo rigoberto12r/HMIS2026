@@ -29,3 +29,5 @@ boto3>=1.34.0
 # Monitoreo
 sentry-sdk[fastapi]>=1.40.0
 prometheus-client>=0.20.0
+# Generacion de PDF
+reportlab>=4.1.0

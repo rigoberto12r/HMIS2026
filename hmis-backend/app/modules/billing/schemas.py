@@ -245,3 +245,208 @@ class FiscalConfigResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# =============================================
+# Notas de Credito
+# =============================================
+
+class CreditNoteLineCreate(BaseModel):
+    """Linea de nota de credito."""
+    original_invoice_line_id: uuid.UUID | None = None
+    description: str = Field(max_length=300)
+    quantity: int = Field(default=1, ge=1)
+    unit_price: float = Field(ge=0)
+    tax: float = Field(default=0.0, ge=0)
+
+
+class CreditNoteCreate(BaseModel):
+    """Creacion de nota de credito."""
+    original_invoice_id: uuid.UUID
+    reason: str = Field(max_length=500)
+    lines: list[CreditNoteLineCreate] = []
+    full_reversal: bool = False
+
+
+class CreditNoteLineResponse(BaseModel):
+    """Respuesta de linea de nota de credito."""
+    id: uuid.UUID
+    description: str
+    quantity: int
+    unit_price: float
+    tax: float
+    line_total: float
+
+    model_config = {"from_attributes": True}
+
+
+class CreditNoteResponse(BaseModel):
+    """Respuesta de nota de credito."""
+    id: uuid.UUID
+    credit_note_number: str
+    fiscal_number: str | None = None
+    original_invoice_id: uuid.UUID
+    patient_id: uuid.UUID
+    reason: str
+    subtotal: float
+    tax_total: float
+    grand_total: float
+    currency: str
+    status: str
+    lines: list[CreditNoteLineResponse] = []
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# =============================================
+# Anulacion y Reversiones
+# =============================================
+
+class InvoiceVoidRequest(BaseModel):
+    """Solicitud de anulacion de factura."""
+    reason: str = Field(min_length=10, max_length=500)
+
+
+class PaymentReversalRequest(BaseModel):
+    """Solicitud de reversion de pago."""
+    reason: str = Field(min_length=10, max_length=500)
+
+
+class PaymentReversalResponse(BaseModel):
+    """Respuesta de reversion de pago."""
+    original_payment_id: uuid.UUID
+    reversal_amount: float
+    reason: str
+    invoice_id: uuid.UUID
+    new_invoice_status: str
+    mensaje: str
+
+
+# =============================================
+# Contabilidad General (GL)
+# =============================================
+
+class AccountCreate(BaseModel):
+    """Creacion de cuenta contable."""
+    code: str = Field(max_length=20)
+    name: str = Field(max_length=200)
+    description: str | None = None
+    category: str = Field(description="activo, pasivo, patrimonio, ingreso, gasto")
+    account_type: str = Field(max_length=50)
+    parent_code: str | None = None
+    is_detail: bool = True
+    normal_balance: str = "debit"
+    currency: str = "DOP"
+
+
+class AccountResponse(BaseModel):
+    """Respuesta de cuenta contable."""
+    id: uuid.UUID
+    code: str
+    name: str
+    description: str | None = None
+    category: str
+    account_type: str
+    parent_code: str | None = None
+    is_detail: bool
+    normal_balance: str
+    currency: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class JournalEntryLineResponse(BaseModel):
+    """Respuesta de linea de asiento."""
+    id: uuid.UUID
+    account_id: uuid.UUID
+    description: str | None = None
+    debit: float
+    credit: float
+
+    model_config = {"from_attributes": True}
+
+
+class JournalEntryResponse(BaseModel):
+    """Respuesta de asiento contable."""
+    id: uuid.UUID
+    entry_number: str
+    entry_date: date
+    description: str
+    reference_type: str | None = None
+    reference_id: uuid.UUID | None = None
+    total_debit: float
+    total_credit: float
+    status: str
+    lines: list[JournalEntryLineResponse] = []
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# =============================================
+# Reportes Financieros
+# =============================================
+
+class ARAgingItem(BaseModel):
+    """Item del reporte de antiguedad de cuentas por cobrar."""
+    patient_id: uuid.UUID
+    patient_name: str
+    invoice_id: uuid.UUID
+    invoice_number: str
+    fiscal_number: str | None = None
+    invoice_date: date
+    due_date: date | None = None
+    grand_total: float
+    total_paid: float
+    balance: float
+    days_outstanding: int
+    aging_bucket: str
+
+
+class ARAgingReport(BaseModel):
+    """Reporte de antiguedad de cuentas por cobrar."""
+    generated_at: datetime
+    currency: str = "DOP"
+    items: list[ARAgingItem]
+    summary: dict
+    total_receivable: float
+
+
+class TrialBalanceLine(BaseModel):
+    """Linea del balance de comprobacion."""
+    account_code: str
+    account_name: str
+    category: str
+    debit_balance: float
+    credit_balance: float
+
+
+class TrialBalance(BaseModel):
+    """Balance de comprobacion."""
+    as_of_date: date
+    currency: str = "DOP"
+    lines: list[TrialBalanceLine]
+    total_debits: float
+    total_credits: float
+
+
+# =============================================
+# Validacion Fiscal
+# =============================================
+
+class RNCValidationRequest(BaseModel):
+    """Solicitud de validacion de RNC/Cedula."""
+    tax_id: str = Field(max_length=30)
+    country_code: str = Field(default="DO", max_length=2)
+
+
+class RNCValidationResponse(BaseModel):
+    """Respuesta de validacion de RNC/Cedula."""
+    tax_id: str
+    valid: bool
+    document_type: str
+    formatted: str | None = None
+    business_name: str | None = None
+    message: str | None = None
