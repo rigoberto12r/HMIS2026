@@ -1,12 +1,17 @@
 version: "3.9"
 
+# Lee variables de entorno desde el archivo .env en la raiz del proyecto
+# Ejemplo: cp .env.example .env && docker compose up
+
 services:
   # ===========================================
-  # PostgreSQL - Primary Database
+  # PostgreSQL - Base de datos principal
   # ===========================================
   postgres:
     image: postgres:16-alpine
     container_name: hmis-postgres
+    env_file:
+      - .env
     environment:
       POSTGRES_DB: hmis
       POSTGRES_USER: hmis_admin
@@ -23,7 +28,7 @@ services:
       retries: 5
 
   # ===========================================
-  # Redis - Cache & Message Broker
+  # Redis - Cache y Broker de mensajes
   # ===========================================
   redis:
     image: redis:7-alpine
@@ -39,11 +44,13 @@ services:
       retries: 5
 
   # ===========================================
-  # Meilisearch - Full-text Search
+  # Meilisearch - Busqueda de texto completo
   # ===========================================
   meilisearch:
     image: getmeili/meilisearch:v1.6
     container_name: hmis-meilisearch
+    env_file:
+      - .env
     environment:
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-hmis_meili_dev_key}
       MEILI_ENV: development
@@ -53,21 +60,23 @@ services:
       - meilisearch_data:/meili_data
 
   # ===========================================
-  # Backend - FastAPI Application
+  # Backend - Aplicacion FastAPI
   # ===========================================
   backend:
     build:
       context: ./hmis-backend
       dockerfile: docker/Dockerfile
     container_name: hmis-backend
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgresql+asyncpg://hmis_admin:${POSTGRES_PASSWORD:-hmis_dev_2026}@postgres:5432/hmis
       REDIS_URL: redis://redis:6379/0
       MEILISEARCH_URL: http://meilisearch:7700
       MEILISEARCH_KEY: ${MEILI_MASTER_KEY:-hmis_meili_dev_key}
       SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-production}
-      ENVIRONMENT: development
-      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:8000
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:8000}
     ports:
       - "8000:8000"
     volumes:
@@ -80,13 +89,15 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   # ===========================================
-  # Frontend - Next.js Application
+  # Frontend - Aplicacion Next.js
   # ===========================================
   frontend:
     build:
       context: ./hmis-frontend
       dockerfile: Dockerfile
     container_name: hmis-frontend
+    env_file:
+      - .env
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000
       NEXT_PUBLIC_APP_NAME: HMIS SaaS
@@ -97,14 +108,22 @@ services:
       - /app/node_modules
     depends_on:
       - backend
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     command: npm run dev
 
   # ===========================================
-  # MinIO - Object Storage (S3-compatible)
+  # MinIO - Almacenamiento de objetos (compatible S3)
   # ===========================================
   minio:
     image: minio/minio:latest
     container_name: hmis-minio
+    env_file:
+      - .env
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-hmis_minio}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-hmis_minio_2026}

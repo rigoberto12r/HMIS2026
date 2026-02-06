@@ -11,6 +11,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from app.core.config import settings
 from app.core.middleware import TenantMiddleware, AuditMiddleware
+from app.core.rate_limit import RateLimitMiddleware
 from app.modules.auth.routes import router as auth_router
 from app.modules.patients.routes import router as patients_router
 from app.modules.appointments.routes import router as appointments_router
@@ -59,22 +60,28 @@ def create_app() -> FastAPI:
     )
 
     # ------ Middleware (orden importa: ultimo registrado se ejecuta primero) ------
+    # Starlette ejecuta los middlewares en orden inverso al de registro,
+    # asi que el ultimo add_middleware() es el primero en procesar la peticion.
 
-    # CORS
+    # CORS - origenes dependientes del entorno
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.ALLOWED_ORIGINS,
+        allow_origins=settings.get_allowed_origins(),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
     # Host de confianza (proteccion contra host header attacks)
-    if settings.ALLOWED_HOSTS:
+    allowed_hosts = settings.get_allowed_hosts()
+    if allowed_hosts:
         app.add_middleware(
             TrustedHostMiddleware,
-            allowed_hosts=settings.ALLOWED_HOSTS,
+            allowed_hosts=allowed_hosts,
         )
+
+    # Limite de peticiones - se ejecuta ANTES de TenantMiddleware
+    app.add_middleware(RateLimitMiddleware)
 
     # Multi-tenancy: resuelve el tenant desde subdominio o header
     app.add_middleware(TenantMiddleware)

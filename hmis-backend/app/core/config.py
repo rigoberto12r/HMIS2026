@@ -32,12 +32,14 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
-    # --- CORS ---
-    ALLOWED_ORIGINS: list[str] = [
-        "http://localhost:3000",
-        "http://localhost:8000",
-    ]
+    # --- CORS (origenes por defecto para desarrollo; staging/produccion leen de CORS_ORIGINS) ---
+    CORS_ORIGINS: str = ""
     ALLOWED_HOSTS: list[str] = []
+
+    # --- Limite de peticiones (Rate Limiting) ---
+    RATE_LIMIT_GENERAL: int = 100  # peticiones por minuto para endpoints generales
+    RATE_LIMIT_LOGIN: int = 5      # peticiones por minuto para endpoint de login
+    RATE_LIMIT_WINDOW_SECONDS: int = 60  # ventana de tiempo en segundos
 
     # --- Busqueda (Meilisearch) ---
     MEILISEARCH_URL: str = "http://localhost:7700"
@@ -64,6 +66,55 @@ class Settings(BaseSettings):
     SUPPORTED_CURRENCIES: ClassVar[list[str]] = ["DOP", "COP", "MXN", "CLP", "PEN", "USD"]
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "case_sensitive": True}
+
+    # --- Metodos para origenes y hosts segun entorno ---
+
+    def get_allowed_origins(self) -> list[str]:
+        """
+        Devuelve los origenes CORS permitidos segun el entorno:
+        - development: origenes locales fijos para desarrollo rapido.
+        - staging: lee de la variable CORS_ORIGINS (separados por coma).
+        - production: lee de CORS_ORIGINS (obligatorio; vacio si no se configura).
+        """
+        if self.ENVIRONMENT == "development":
+            return ["http://localhost:3000", "http://localhost:8000"]
+
+        if self.ENVIRONMENT in ("staging", "production"):
+            raw = self.CORS_ORIGINS.strip()
+            if not raw:
+                if self.ENVIRONMENT == "production":
+                    # En produccion los origenes deben configurarse explicitamente
+                    return []
+                return []
+            return [origen.strip() for origen in raw.split(",") if origen.strip()]
+
+        # Entorno desconocido: no permitir origenes por seguridad
+        return []
+
+    def get_allowed_hosts(self) -> list[str]:
+        """
+        Devuelve los hosts permitidos segun el entorno:
+        - development: sin restriccion (lista vacia = todo permitido en TrustedHostMiddleware).
+        - staging/production: lee de ALLOWED_HOSTS o construye a partir de CORS_ORIGINS.
+        """
+        if self.ENVIRONMENT == "development":
+            return []
+
+        if self.ALLOWED_HOSTS:
+            return self.ALLOWED_HOSTS
+
+        # Derivar hosts desde los origenes CORS configurados
+        origenes = self.get_allowed_origins()
+        hosts: list[str] = []
+        for origen in origenes:
+            try:
+                from urllib.parse import urlparse
+                parsed = urlparse(origen)
+                if parsed.hostname:
+                    hosts.append(parsed.hostname)
+            except Exception:
+                continue
+        return hosts
 
 
 settings = Settings()
