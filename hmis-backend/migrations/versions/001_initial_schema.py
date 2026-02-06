@@ -27,6 +27,28 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # ── Sistema (tabla maestra de tenants) ─────────────────
+
+    op.create_table(
+        "tenants",
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column("tenant_id", sa.String(50), unique=True, nullable=False, index=True),
+        sa.Column("schema_name", sa.String(63), unique=True, nullable=False),
+        sa.Column("hospital_name", sa.String(200), nullable=False),
+        sa.Column("country", sa.String(2), server_default="DO"),
+        sa.Column("is_active", sa.Boolean, server_default="true"),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+    )
+
+    op.create_table(
+        "icd10_catalog",
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column("code", sa.String(10), unique=True, nullable=False, index=True),
+        sa.Column("description", sa.String(500), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+    )
+
     # ── Auth ──────────────────────────────────────────────
 
     op.create_table(
@@ -886,3 +908,5 @@ def downgrade() -> None:
     op.drop_table("user_roles")
     op.drop_table("users")
     op.drop_table("roles")
+    op.drop_table("icd10_catalog")
+    op.drop_table("tenants")

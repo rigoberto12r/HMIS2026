@@ -23,6 +23,7 @@ from app.modules.appointments.routes import router as appointments_router
 from app.modules.emr.routes import router as emr_router
 from app.modules.billing.routes import router as billing_router
 from app.modules.pharmacy.routes import router as pharmacy_router
+from app.modules.admin.routes import router as admin_router
 
 logger = get_logger("hmis.app")
 
@@ -123,13 +124,50 @@ def create_app() -> FastAPI:
     app.include_router(emr_router, prefix="/api/v1/emr", tags=["Historia Clinica Electronica"])
     app.include_router(billing_router, prefix="/api/v1/billing", tags=["Facturacion y Seguros"])
     app.include_router(pharmacy_router, prefix="/api/v1/pharmacy", tags=["Farmacia e Inventario"])
+    app.include_router(admin_router, prefix="/api/v1/admin", tags=["Administracion"])
 
     # ------ Endpoints de sistema ------
 
     @app.get("/health", tags=["Sistema"])
     async def health_check():
-        """Verificacion de salud del servicio."""
+        """Verificacion basica de salud del servicio."""
         return {"status": "ok", "version": "1.0.0", "servicio": "HMIS SaaS"}
+
+    @app.get("/health/live", tags=["Sistema"])
+    async def health_live():
+        """Liveness probe: el proceso esta vivo."""
+        return {"status": "alive"}
+
+    @app.get("/health/ready", tags=["Sistema"])
+    async def health_ready():
+        """Readiness probe: la app puede recibir trafico (DB + Redis OK)."""
+        from app.core.database import engine
+        from app.core.cache import redis_client
+
+        checks = {"database": False, "redis": False}
+        try:
+            async with engine.connect() as conn:
+                await conn.execute(__import__("sqlalchemy").text("SELECT 1"))
+            checks["database"] = True
+        except Exception:
+            pass
+
+        try:
+            await redis_client.ping()
+            checks["redis"] = True
+        except Exception:
+            pass
+
+        all_ok = all(checks.values())
+        status_code = 200 if all_ok else 503
+        return Response(
+            content=__import__("json").dumps({
+                "status": "ready" if all_ok else "not_ready",
+                "checks": checks,
+            }),
+            status_code=status_code,
+            media_type="application/json",
+        )
 
     @app.get("/metrics", include_in_schema=False)
     async def metrics():

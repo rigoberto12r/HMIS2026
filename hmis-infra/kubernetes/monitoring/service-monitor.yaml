@@ -1,0 +1,158 @@
+# ===========================================
+# HMIS SaaS - Prometheus ServiceMonitor
+# ===========================================
+# Requiere: prometheus-operator (kube-prometheus-stack)
+# Instalar: helm install prometheus prometheus-community/kube-prometheus-stack -n monitoring
+
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: hmis-backend
+  namespace: hmis
+  labels:
+    app: hmis-backend
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: hmis-backend
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+  namespaceSelector:
+    matchNames:
+      - hmis
+---
+# ===========================================
+# Alertas de Prometheus
+# ===========================================
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hmis-alerts
+  namespace: hmis
+  labels:
+    release: prometheus
+spec:
+  groups:
+    # --- Disponibilidad ---
+    - name: hmis.availability
+      rules:
+        - alert: HMISBackendDown
+          expr: up{job="hmis-backend"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "HMIS Backend no disponible"
+            description: "El backend de HMIS no responde al scraping de metricas por mas de 2 minutos."
+
+        - alert: HMISHighErrorRate
+          expr: |
+            (
+              sum(rate(hmis_http_requests_total{status_code=~"5.."}[5m]))
+              /
+              sum(rate(hmis_http_requests_total[5m]))
+            ) > 0.05
+          for: 5m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Tasa de errores 5xx alta (>5%)"
+            description: "El {{ $value | humanizePercentage }} de las peticiones esta retornando errores 5xx."
+
+        - alert: HMISCriticalErrorRate
+          expr: |
+            (
+              sum(rate(hmis_http_requests_total{status_code=~"5.."}[5m]))
+              /
+              sum(rate(hmis_http_requests_total[5m]))
+            ) > 0.15
+          for: 2m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Tasa de errores 5xx critica (>15%)"
+            description: "El {{ $value | humanizePercentage }} de las peticiones tiene errores. Revision inmediata requerida."
+
+    # --- Latencia ---
+    - name: hmis.latency
+      rules:
+        - alert: HMISHighLatencyP95
+          expr: |
+            histogram_quantile(0.95, sum(rate(hmis_http_request_duration_seconds_bucket[5m])) by (le)) > 2
+          for: 5m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Latencia P95 alta (>2s)"
+            description: "El percentil 95 de latencia es {{ $value | humanize }}s."
+
+        - alert: HMISSlowAuthEndpoint
+          expr: |
+            histogram_quantile(0.95,
+              sum(rate(hmis_http_request_duration_seconds_bucket{path_template=~"/api/v1/auth/.*"}[5m])) by (le)
+            ) > 1
+          for: 3m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Endpoint de auth lento (>1s P95)"
+            description: "El endpoint de autenticacion tiene latencia alta."
+
+    # --- Recursos ---
+    - name: hmis.resources
+      rules:
+        - alert: HMISHighConcurrentRequests
+          expr: hmis_active_requests > 50
+          for: 3m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Muchas peticiones concurrentes (>50)"
+            description: "Hay {{ $value }} peticiones activas simultaneamente."
+
+        - alert: HMISPodMemoryHigh
+          expr: |
+            container_memory_usage_bytes{namespace="hmis", container="hmis-backend"}
+            / container_spec_memory_limit_bytes{namespace="hmis", container="hmis-backend"} > 0.85
+          for: 5m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Uso de memoria del backend >85%"
+            description: "El pod del backend esta usando {{ $value | humanizePercentage }} de su limite de memoria."
+
+    # --- Negocio ---
+    - name: hmis.business
+      rules:
+        - alert: HMISNoTrafficDetected
+          expr: |
+            sum(rate(hmis_http_requests_total[15m])) == 0
+          for: 15m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Sin trafico por 15 minutos"
+            description: "No se han recibido peticiones HTTP en los ultimos 15 minutos. Verificar conectividad."
+
+        - alert: HMISLoginFailureSpike
+          expr: |
+            sum(rate(hmis_http_requests_total{path_template="/api/v1/auth/login", status_code="401"}[5m])) > 1
+          for: 5m
+          labels:
+            severity: warning
+            team: security
+          annotations:
+            summary: "Pico de intentos de login fallidos"
+            description: "Mas de 1 intento de login fallido por segundo durante 5 minutos. Posible ataque de fuerza bruta."
