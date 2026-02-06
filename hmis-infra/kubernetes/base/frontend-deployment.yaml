@@ -1,0 +1,354 @@
+# ============================================================================
+# HMIS SaaS Platform - Despliegue del Frontend
+# Deployment, Service, HPA y ConfigMap para el servicio frontend
+# ============================================================================
+
+# ConfigMap con configuracion del frontend (inyectada en tiempo de ejecucion)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hmis-frontend-config
+  namespace: hmis
+  labels:
+    app.kubernetes.io/name: hmis-frontend
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/part-of: hmis-platform
+data:
+  # Configuracion de Nginx para servir la aplicacion React/Angular
+  nginx.conf: |
+    # Configuracion principal de Nginx para el frontend HMIS
+    worker_processes auto;
+    error_log /var/log/nginx/error.log warn;
+    pid /tmp/nginx.pid;
+
+    events {
+        # Numero maximo de conexiones simultaneas por worker
+        worker_connections 1024;
+    }
+
+    http {
+        # Tipos MIME para servir archivos estaticos correctamente
+        include /etc/nginx/mime.types;
+        default_type application/octet-stream;
+
+        # Formato de log personalizado con informacion de rendimiento
+        log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                        '$status $body_bytes_sent "$http_referer" '
+                        '"$http_user_agent" "$http_x_forwarded_for" '
+                        'rt=$request_time';
+
+        access_log /var/log/nginx/access.log main;
+
+        # Optimizaciones de rendimiento
+        sendfile on;
+        tcp_nopush on;
+        tcp_nodelay on;
+        keepalive_timeout 65;
+        types_hash_max_size 2048;
+
+        # Habilitar compresion gzip para reducir el tamano de las respuestas
+        gzip on;
+        gzip_vary on;
+        gzip_proxied any;
+        gzip_comp_level 6;
+        gzip_types text/plain text/css application/json application/javascript
+                   text/xml application/xml application/xml+rss text/javascript
+                   image/svg+xml;
+        gzip_min_length 256;
+
+        # Directorio temporal para que funcione como usuario no root
+        client_body_temp_path /tmp/client_temp;
+        proxy_temp_path /tmp/proxy_temp;
+        fastcgi_temp_path /tmp/fastcgi_temp;
+        uwsgi_temp_path /tmp/uwsgi_temp;
+        scgi_temp_path /tmp/scgi_temp;
+
+        server {
+            listen 3000;
+            server_name _;
+            root /usr/share/nginx/html;
+            index index.html;
+
+            # Cabeceras de seguridad
+            add_header X-Frame-Options "SAMEORIGIN" always;
+            add_header X-Content-Type-Options "nosniff" always;
+            add_header X-XSS-Protection "1; mode=block" always;
+            add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+            add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' https://api.*;" always;
+            add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+
+            # Endpoint de salud para las verificaciones de Kubernetes
+            location /health {
+                access_log off;
+                return 200 '{"status": "ok"}';
+                add_header Content-Type application/json;
+            }
+
+            # Cache agresivo para archivos estaticos con hash en el nombre
+            location /static/ {
+                expires 1y;
+                add_header Cache-Control "public, immutable";
+                access_log off;
+            }
+
+            # Cache para archivos de assets (imagenes, fuentes, etc.)
+            location ~* \.(ico|css|js|gif|jpeg|jpg|png|woff|woff2|ttf|svg|eot)$ {
+                expires 6M;
+                add_header Cache-Control "public";
+                access_log off;
+            }
+
+            # Redirigir todas las rutas al index.html (SPA routing)
+            location / {
+                try_files $uri $uri/ /index.html;
+                # No cachear el index.html para que siempre obtenga la version mas reciente
+                add_header Cache-Control "no-cache, no-store, must-revalidate";
+            }
+
+            # Proxy inverso para llamadas al API backend
+            location /api/ {
+                proxy_pass http://hmis-backend.hmis.svc.cluster.local;
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection 'upgrade';
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+                proxy_cache_bypass $http_upgrade;
+                # Tiempo maximo de espera para respuestas del backend
+                proxy_read_timeout 60s;
+                proxy_send_timeout 60s;
+            }
+        }
+    }
+---
+# Deployment del servicio frontend
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hmis-frontend
+  namespace: hmis
+  labels:
+    app.kubernetes.io/name: hmis-frontend
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/part-of: hmis-platform
+    app.kubernetes.io/version: "latest"
+spec:
+  # Numero inicial de replicas (gestionado por HPA)
+  replicas: 2
+  # Estrategia de actualizacion sin tiempo de inactividad
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hmis-frontend
+      app.kubernetes.io/component: frontend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hmis-frontend
+        app.kubernetes.io/component: frontend
+        app.kubernetes.io/part-of: hmis-platform
+      annotations:
+        # Hash del ConfigMap para forzar redespliegue cuando cambie la configuracion
+        checksum/nginx-config: "placeholder-actualizar-con-hash"
+    spec:
+      serviceAccountName: hmis-frontend-sa
+      # Ejecutar en nodos de aplicacion
+      nodeSelector:
+        role: application
+      # Distribuir pods del frontend en diferentes nodos
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/name
+                      operator: In
+                      values:
+                        - hmis-frontend
+                topologyKey: kubernetes.io/hostname
+      # Contexto de seguridad del pod
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
+      terminationGracePeriodSeconds: 15
+      containers:
+        - name: frontend
+          # Imagen del contenedor (reemplazar con URL real de ECR)
+          image: ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/hmis-production/frontend:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          # Variables de entorno para configuracion en tiempo de ejecucion
+          env:
+            # URL base del API backend (para renderizado del lado del servidor si aplica)
+            - name: API_BASE_URL
+              value: "http://hmis-backend.hmis.svc.cluster.local"
+            # Entorno de ejecucion
+            - name: NODE_ENV
+              value: "production"
+          # Limites de recursos del contenedor
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          # Verificacion de disponibilidad - el pod puede recibir trafico
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
+            timeoutSeconds: 3
+          # Verificacion de vida - reiniciar si no responde
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 3
+            timeoutSeconds: 3
+          # Verificacion de inicio
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 12
+            timeoutSeconds: 3
+          # Contexto de seguridad del contenedor
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          # Montar la configuracion de Nginx y directorios temporales
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+              readOnly: true
+            - name: tmp-dir
+              mountPath: /tmp
+            - name: nginx-cache
+              mountPath: /var/cache/nginx
+            - name: nginx-logs
+              mountPath: /var/log/nginx
+      volumes:
+        # Configuracion de Nginx desde el ConfigMap
+        - name: nginx-config
+          configMap:
+            name: hmis-frontend-config
+            items:
+              - key: nginx.conf
+                path: nginx.conf
+        # Directorio temporal
+        - name: tmp-dir
+          emptyDir:
+            sizeLimit: "50Mi"
+        # Cache de Nginx
+        - name: nginx-cache
+          emptyDir:
+            sizeLimit: "100Mi"
+        # Logs de Nginx
+        - name: nginx-logs
+          emptyDir:
+            sizeLimit: "50Mi"
+---
+# Servicio para exponer el frontend dentro del cluster
+apiVersion: v1
+kind: Service
+metadata:
+  name: hmis-frontend
+  namespace: hmis
+  labels:
+    app.kubernetes.io/name: hmis-frontend
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/part-of: hmis-platform
+  annotations:
+    description: "Servicio interno para el frontend del HMIS"
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: hmis-frontend
+    app.kubernetes.io/component: frontend
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+---
+# Autoescalador Horizontal de Pods para el frontend
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: hmis-frontend-hpa
+  namespace: hmis
+  labels:
+    app.kubernetes.io/name: hmis-frontend
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/part-of: hmis-platform
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: hmis-frontend
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    # Escalar basandose en el uso de CPU
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 75
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+---
+# Presupuesto de interrupcion para el frontend
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: hmis-frontend-pdb
+  namespace: hmis
+  labels:
+    app.kubernetes.io/name: hmis-frontend
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/part-of: hmis-platform
+spec:
+  # Garantizar que al menos 1 pod este siempre disponible
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hmis-frontend
+      app.kubernetes.io/component: frontend

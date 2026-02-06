@@ -1,0 +1,568 @@
+# ============================================================================
+# HMIS SaaS Platform - Pipeline de Despliegue Continuo (CD)
+# Compila imagenes Docker, las sube a ECR y despliega en EKS
+# Se ejecuta solo en ramas principales despues de que CI pase exitosamente
+# ============================================================================
+
+name: CD - Despliegue
+
+on:
+  # Ejecutar cuando el workflow de CI se complete exitosamente
+  workflow_run:
+    workflows: ["CI - Integracion Continua"]
+    types:
+      - completed
+    branches:
+      - main
+      - develop
+
+  # Permitir ejecucion manual con seleccion de entorno
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Entorno de despliegue"
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      skip_tests:
+        description: "Omitir verificaciones previas al despliegue"
+        required: false
+        type: boolean
+        default: false
+
+# Solo una ejecucion de despliegue a la vez por entorno
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+# Permisos necesarios para interactuar con AWS y el cluster
+permissions:
+  contents: read
+  id-token: write
+  packages: write
+
+env:
+  AWS_REGION: us-east-1
+  # Nombres de los repositorios ECR
+  ECR_BACKEND_REPO: hmis/backend
+  ECR_FRONTEND_REPO: hmis/frontend
+  # Nombre del cluster EKS
+  EKS_CLUSTER_NAME: hmis-eks
+  # Namespace de Kubernetes
+  K8S_NAMESPACE: hmis
+
+jobs:
+  # ===========================================================================
+  # Trabajo 1: Determinar el entorno de despliegue
+  # ===========================================================================
+  prepare:
+    name: "Preparar Despliegue"
+    runs-on: ubuntu-latest
+    # Solo ejecutar si el CI fue exitoso o si es ejecucion manual
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    outputs:
+      environment: ${{ steps.set-env.outputs.environment }}
+      image_tag: ${{ steps.set-env.outputs.image_tag }}
+      should_deploy: ${{ steps.set-env.outputs.should_deploy }}
+
+    steps:
+      # Determinar el entorno basado en la rama o la seleccion manual
+      - name: Determinar entorno de despliegue
+        id: set-env
+        run: |
+          # Si es ejecucion manual, usar el entorno seleccionado
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "environment=${{ github.event.inputs.environment }}" >> "$GITHUB_OUTPUT"
+          # Si es la rama main, desplegar a staging (produccion requiere aprobacion manual)
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "environment=staging" >> "$GITHUB_OUTPUT"
+          # Si es la rama develop, desplegar a desarrollo
+          elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
+            echo "environment=development" >> "$GITHUB_OUTPUT"
+          else
+            echo "environment=none" >> "$GITHUB_OUTPUT"
+            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Generar etiqueta de imagen usando el SHA del commit
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-8)
+          IMAGE_TAG="v$(date +'%Y%m%d')-${SHORT_SHA}"
+          echo "image_tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "should_deploy=true" >> "$GITHUB_OUTPUT"
+
+          echo "Entorno: $(cat $GITHUB_OUTPUT | grep environment)"
+          echo "Etiqueta de imagen: ${IMAGE_TAG}"
+
+  # ===========================================================================
+  # Trabajo 2: Compilar y subir imagen Docker del Backend
+  # ===========================================================================
+  build-backend:
+    name: "Compilar Backend"
+    runs-on: ubuntu-latest
+    needs: prepare
+    if: needs.prepare.outputs.should_deploy == 'true'
+    environment: ${{ needs.prepare.outputs.environment }}
+
+    outputs:
+      image_uri: ${{ steps.build.outputs.image_uri }}
+
+    steps:
+      - name: Obtener codigo fuente
+        uses: actions/checkout@v4
+
+      # Autenticar con AWS usando OIDC (sin credenciales estaticas)
+      - name: Configurar credenciales de AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Autenticar Docker con ECR
+      - name: Autenticar con Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # Configurar BuildKit para compilaciones eficientes
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Compilar y subir la imagen del backend a ECR
+      - name: Compilar y subir imagen del backend
+        id: build
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG: ${{ needs.prepare.outputs.image_tag }}
+          ENVIRONMENT: ${{ needs.prepare.outputs.environment }}
+        run: |
+          # Construir la URI completa de la imagen
+          FULL_IMAGE="${ECR_REGISTRY}/${ECR_BACKEND_REPO}"
+          IMAGE_URI="${FULL_IMAGE}:${IMAGE_TAG}"
+
+          echo "Compilando imagen del backend: ${IMAGE_URI}"
+
+          # Compilar la imagen Docker con multiples etiquetas
+          docker buildx build \
+            --platform linux/amd64 \
+            --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+            --build-arg VCS_REF=${{ github.sha }} \
+            --build-arg VERSION=${IMAGE_TAG} \
+            --build-arg ENVIRONMENT=${ENVIRONMENT} \
+            --tag "${IMAGE_URI}" \
+            --tag "${FULL_IMAGE}:latest-${ENVIRONMENT}" \
+            --push \
+            --cache-from type=registry,ref="${FULL_IMAGE}:cache-${ENVIRONMENT}" \
+            --cache-to type=registry,ref="${FULL_IMAGE}:cache-${ENVIRONMENT}",mode=max \
+            ./hmis-backend
+
+          echo "image_uri=${IMAGE_URI}" >> "$GITHUB_OUTPUT"
+          echo "Imagen del backend subida exitosamente: ${IMAGE_URI}"
+
+      # Escanear la imagen en busca de vulnerabilidades
+      - name: Escanear imagen con Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ steps.build.outputs.image_uri }}
+          format: "table"
+          exit-code: "0"
+          severity: "CRITICAL,HIGH"
+          ignore-unfixed: true
+
+  # ===========================================================================
+  # Trabajo 3: Compilar y subir imagen Docker del Frontend
+  # ===========================================================================
+  build-frontend:
+    name: "Compilar Frontend"
+    runs-on: ubuntu-latest
+    needs: prepare
+    if: needs.prepare.outputs.should_deploy == 'true'
+    environment: ${{ needs.prepare.outputs.environment }}
+
+    outputs:
+      image_uri: ${{ steps.build.outputs.image_uri }}
+
+    steps:
+      - name: Obtener codigo fuente
+        uses: actions/checkout@v4
+
+      - name: Configurar credenciales de AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Autenticar con Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Compilar y subir la imagen del frontend a ECR
+      - name: Compilar y subir imagen del frontend
+        id: build
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG: ${{ needs.prepare.outputs.image_tag }}
+          ENVIRONMENT: ${{ needs.prepare.outputs.environment }}
+        run: |
+          FULL_IMAGE="${ECR_REGISTRY}/${ECR_FRONTEND_REPO}"
+          IMAGE_URI="${FULL_IMAGE}:${IMAGE_TAG}"
+
+          echo "Compilando imagen del frontend: ${IMAGE_URI}"
+
+          # Compilar la imagen Docker del frontend
+          docker buildx build \
+            --platform linux/amd64 \
+            --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+            --build-arg VCS_REF=${{ github.sha }} \
+            --build-arg VERSION=${IMAGE_TAG} \
+            --build-arg ENVIRONMENT=${ENVIRONMENT} \
+            --build-arg VITE_API_URL=${{ vars.API_URL }} \
+            --tag "${IMAGE_URI}" \
+            --tag "${FULL_IMAGE}:latest-${ENVIRONMENT}" \
+            --push \
+            --cache-from type=registry,ref="${FULL_IMAGE}:cache-${ENVIRONMENT}" \
+            --cache-to type=registry,ref="${FULL_IMAGE}:cache-${ENVIRONMENT}",mode=max \
+            ./hmis-frontend
+
+          echo "image_uri=${IMAGE_URI}" >> "$GITHUB_OUTPUT"
+          echo "Imagen del frontend subida exitosamente: ${IMAGE_URI}"
+
+      - name: Escanear imagen con Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ steps.build.outputs.image_uri }}
+          format: "table"
+          exit-code: "0"
+          severity: "CRITICAL,HIGH"
+          ignore-unfixed: true
+
+  # ===========================================================================
+  # Trabajo 4: Desplegar en el cluster EKS
+  # ===========================================================================
+  deploy:
+    name: "Desplegar en EKS"
+    runs-on: ubuntu-latest
+    needs:
+      - prepare
+      - build-backend
+      - build-frontend
+    environment: ${{ needs.prepare.outputs.environment }}
+
+    steps:
+      - name: Obtener codigo fuente
+        uses: actions/checkout@v4
+
+      - name: Configurar credenciales de AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Configurar kubectl para interactuar con el cluster EKS
+      - name: Configurar kubectl
+        run: |
+          aws eks update-kubeconfig \
+            --region ${{ env.AWS_REGION }} \
+            --name ${{ env.EKS_CLUSTER_NAME }}-${{ needs.prepare.outputs.environment }}
+
+          echo "Verificando conexion al cluster..."
+          kubectl cluster-info
+          kubectl get nodes
+
+      # Actualizar los secretos de Kubernetes si es necesario
+      - name: Actualizar secretos de Kubernetes
+        run: |
+          # Verificar que los secretos existen en el namespace
+          if ! kubectl get secret hmis-backend-secrets -n ${{ env.K8S_NAMESPACE }} &>/dev/null; then
+            echo "AVISO: Los secretos de Kubernetes no existen. Deben crearse manualmente."
+            echo "Ejecutar: kubectl create secret generic hmis-backend-secrets -n hmis --from-literal=DATABASE_URL=... --from-literal=REDIS_URL=..."
+          fi
+
+      # Aplicar los manifiestos de Kubernetes actualizados
+      - name: Aplicar manifiestos de Kubernetes
+        env:
+          ENVIRONMENT: ${{ needs.prepare.outputs.environment }}
+          IMAGE_TAG: ${{ needs.prepare.outputs.image_tag }}
+          BACKEND_IMAGE: ${{ needs.build-backend.outputs.image_uri }}
+          FRONTEND_IMAGE: ${{ needs.build-frontend.outputs.image_uri }}
+        run: |
+          echo "=== Desplegando en entorno: ${ENVIRONMENT} ==="
+          echo "Backend:  ${BACKEND_IMAGE}"
+          echo "Frontend: ${FRONTEND_IMAGE}"
+
+          # Aplicar namespace y recursos base
+          kubectl apply -f hmis-infra/kubernetes/base/namespace.yaml
+
+          # Actualizar la imagen del backend en el deployment
+          kubectl set image deployment/hmis-backend \
+            backend="${BACKEND_IMAGE}" \
+            -n ${{ env.K8S_NAMESPACE }} \
+            --record || {
+              echo "Deployment de backend no existe, aplicando manifiestos completos..."
+              # Reemplazar placeholder de imagen en el manifiesto y aplicar
+              sed "s|ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/hmis-production/backend:latest|${BACKEND_IMAGE}|g" \
+                hmis-infra/kubernetes/base/backend-deployment.yaml | kubectl apply -f -
+            }
+
+          # Actualizar la imagen del frontend en el deployment
+          kubectl set image deployment/hmis-frontend \
+            frontend="${FRONTEND_IMAGE}" \
+            -n ${{ env.K8S_NAMESPACE }} \
+            --record || {
+              echo "Deployment de frontend no existe, aplicando manifiestos completos..."
+              sed "s|ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/hmis-production/frontend:latest|${FRONTEND_IMAGE}|g" \
+                hmis-infra/kubernetes/base/frontend-deployment.yaml | kubectl apply -f -
+            }
+
+          # Aplicar configuracion de ingress
+          kubectl apply -f hmis-infra/kubernetes/base/ingress.yaml
+
+          # Anotar los deployments con informacion del despliegue
+          kubectl annotate deployment hmis-backend \
+            -n ${{ env.K8S_NAMESPACE }} \
+            --overwrite \
+            deploy-timestamp="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            deploy-commit="${{ github.sha }}" \
+            deploy-actor="${{ github.actor }}" \
+            deploy-tag="${IMAGE_TAG}"
+
+          kubectl annotate deployment hmis-frontend \
+            -n ${{ env.K8S_NAMESPACE }} \
+            --overwrite \
+            deploy-timestamp="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            deploy-commit="${{ github.sha }}" \
+            deploy-actor="${{ github.actor }}" \
+            deploy-tag="${IMAGE_TAG}"
+
+      # Esperar a que el despliegue se complete exitosamente
+      - name: Verificar estado del despliegue
+        run: |
+          echo "=== Esperando a que los despliegues se completen ==="
+
+          # Esperar rollout del backend (maximo 5 minutos)
+          echo "Verificando despliegue del backend..."
+          kubectl rollout status deployment/hmis-backend \
+            -n ${{ env.K8S_NAMESPACE }} \
+            --timeout=300s
+
+          # Esperar rollout del frontend (maximo 3 minutos)
+          echo "Verificando despliegue del frontend..."
+          kubectl rollout status deployment/hmis-frontend \
+            -n ${{ env.K8S_NAMESPACE }} \
+            --timeout=180s
+
+          echo "=== Estado actual de los pods ==="
+          kubectl get pods -n ${{ env.K8S_NAMESPACE }} -o wide
+
+          echo "=== Estado de los servicios ==="
+          kubectl get services -n ${{ env.K8S_NAMESPACE }}
+
+          echo "=== Estado del ingress ==="
+          kubectl get ingress -n ${{ env.K8S_NAMESPACE }}
+
+      # Ejecutar verificaciones de salud post-despliegue
+      - name: Verificaciones de salud post-despliegue
+        run: |
+          echo "=== Ejecutando verificaciones de salud ==="
+
+          # Obtener la URL del servicio backend
+          BACKEND_POD=$(kubectl get pods -n ${{ env.K8S_NAMESPACE }} \
+            -l app.kubernetes.io/name=hmis-backend \
+            -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+
+          if [[ -n "${BACKEND_POD}" ]]; then
+            # Verificar endpoint de salud del backend
+            echo "Verificando salud del backend (pod: ${BACKEND_POD})..."
+            kubectl exec "${BACKEND_POD}" -n ${{ env.K8S_NAMESPACE }} -- \
+              wget -qO- http://localhost:8000/api/health/ready 2>/dev/null || \
+              echo "AVISO: No se pudo verificar el endpoint de salud del backend"
+          fi
+
+          # Verificar que todos los pods estan en estado Running
+          PODS_NO_LISTOS=$(kubectl get pods -n ${{ env.K8S_NAMESPACE }} \
+            --field-selector=status.phase!=Running \
+            --no-headers 2>/dev/null | wc -l)
+
+          if [[ "${PODS_NO_LISTOS}" -gt 0 ]]; then
+            echo "AVISO: ${PODS_NO_LISTOS} pods no estan en estado Running"
+            kubectl get pods -n ${{ env.K8S_NAMESPACE }} --field-selector=status.phase!=Running
+          else
+            echo "Todos los pods estan en estado Running"
+          fi
+
+  # ===========================================================================
+  # Trabajo 5: Ejecutar migraciones de base de datos
+  # ===========================================================================
+  run-migrations:
+    name: "Ejecutar Migraciones"
+    runs-on: ubuntu-latest
+    needs:
+      - prepare
+      - deploy
+    environment: ${{ needs.prepare.outputs.environment }}
+
+    steps:
+      - name: Obtener codigo fuente
+        uses: actions/checkout@v4
+
+      - name: Configurar credenciales de AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configurar kubectl
+        run: |
+          aws eks update-kubeconfig \
+            --region ${{ env.AWS_REGION }} \
+            --name ${{ env.EKS_CLUSTER_NAME }}-${{ needs.prepare.outputs.environment }}
+
+      # Ejecutar migraciones de base de datos como un Job de Kubernetes
+      - name: Ejecutar migraciones de base de datos
+        env:
+          BACKEND_IMAGE: ${{ needs.build-backend.outputs.image_uri }}
+        run: |
+          echo "=== Ejecutando migraciones de base de datos ==="
+
+          # Crear un Job temporal para ejecutar las migraciones
+          cat <<MANIFEST | kubectl apply -f -
+          apiVersion: batch/v1
+          kind: Job
+          metadata:
+            name: hmis-migrations-${{ github.run_number }}
+            namespace: ${{ env.K8S_NAMESPACE }}
+            labels:
+              app.kubernetes.io/name: hmis-migrations
+              app.kubernetes.io/part-of: hmis-platform
+          spec:
+            backoffLimit: 3
+            activeDeadlineSeconds: 300
+            ttlSecondsAfterFinished: 3600
+            template:
+              spec:
+                serviceAccountName: hmis-backend-sa
+                restartPolicy: Never
+                containers:
+                  - name: migrations
+                    image: ${BACKEND_IMAGE}
+                    command: ["python", "-m", "alembic", "upgrade", "head"]
+                    envFrom:
+                      - configMapRef:
+                          name: hmis-backend-config
+                    env:
+                      - name: DATABASE_URL
+                        valueFrom:
+                          secretKeyRef:
+                            name: hmis-backend-secrets
+                            key: DATABASE_URL
+                    resources:
+                      requests:
+                        cpu: "100m"
+                        memory: "256Mi"
+                      limits:
+                        cpu: "500m"
+                        memory: "512Mi"
+          MANIFEST
+
+          # Esperar a que el Job se complete (maximo 5 minutos)
+          echo "Esperando a que las migraciones se completen..."
+          kubectl wait --for=condition=complete \
+            job/hmis-migrations-${{ github.run_number }} \
+            -n ${{ env.K8S_NAMESPACE }} \
+            --timeout=300s || {
+              echo "ERROR: Las migraciones no se completaron a tiempo"
+              kubectl logs job/hmis-migrations-${{ github.run_number }} -n ${{ env.K8S_NAMESPACE }}
+              exit 1
+            }
+
+          echo "Migraciones completadas exitosamente"
+
+  # ===========================================================================
+  # Trabajo 6: Notificacion del despliegue
+  # ===========================================================================
+  notify:
+    name: "Notificar Despliegue"
+    runs-on: ubuntu-latest
+    needs:
+      - prepare
+      - deploy
+      - run-migrations
+    if: always()
+
+    steps:
+      # Determinar el estado final del despliegue
+      - name: Determinar estado del despliegue
+        id: status
+        run: |
+          if [[ "${{ needs.deploy.result }}" == "success" ]] && [[ "${{ needs.run-migrations.result }}" == "success" ]]; then
+            echo "status=success" >> "$GITHUB_OUTPUT"
+            echo "emoji=✅" >> "$GITHUB_OUTPUT"
+            echo "message=Despliegue completado exitosamente" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=failure" >> "$GITHUB_OUTPUT"
+            echo "emoji=❌" >> "$GITHUB_OUTPUT"
+            echo "message=El despliegue fallo - se requiere atencion inmediata" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Enviar notificacion a Slack (si esta configurado)
+      - name: Notificar a Slack
+        if: vars.SLACK_WEBHOOK_URL != ''
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "${{ steps.status.outputs.emoji }} Despliegue HMIS - ${{ needs.prepare.outputs.environment }}"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {"type": "mrkdwn", "text": "*Entorno:*\n${{ needs.prepare.outputs.environment }}"},
+                    {"type": "mrkdwn", "text": "*Version:*\n${{ needs.prepare.outputs.image_tag }}"},
+                    {"type": "mrkdwn", "text": "*Estado:*\n${{ steps.status.outputs.message }}"},
+                    {"type": "mrkdwn", "text": "*Actor:*\n${{ github.actor }}"}
+                  ]
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {"type": "plain_text", "text": "Ver en GitHub"},
+                      "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                    }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ vars.SLACK_WEBHOOK_URL }}
+
+      # Crear una release tag en Git si se desplego a produccion
+      - name: Crear etiqueta de release
+        if: |
+          needs.prepare.outputs.environment == 'production' &&
+          needs.deploy.result == 'success'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Crear etiqueta en Git para el despliegue a produccion
+            const tag = '${{ needs.prepare.outputs.image_tag }}';
+            await github.rest.git.createRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: `refs/tags/${tag}`,
+              sha: context.sha,
+            });
+            console.log(`Etiqueta de release creada: ${tag}`);

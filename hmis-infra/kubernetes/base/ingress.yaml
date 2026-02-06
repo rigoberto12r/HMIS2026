@@ -1,0 +1,235 @@
+# ============================================================================
+# HMIS SaaS Platform - Ingress de Kubernetes
+# Configuracion de entrada con TLS y soporte para subdominios wildcard
+# Permite enrutar trafico por inquilino: {tenant}.hmis.example.com
+# ============================================================================
+
+# Ingress principal para el dominio base del HMIS
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hmis-main-ingress
+  namespace: hmis
+  labels:
+    app.kubernetes.io/name: hmis-ingress
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: hmis-platform
+  annotations:
+    # Clase de controlador de ingress a utilizar
+    kubernetes.io/ingress.class: "nginx"
+    # Solicitar certificado TLS automaticamente con cert-manager
+    cert-manager.io/cluster-issuer: "letsencrypt-production"
+
+    # --- Configuracion de SSL/TLS ---
+    # Forzar redireccion de HTTP a HTTPS
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # Usar TLS 1.2 como version minima
+    nginx.ingress.kubernetes.io/ssl-protocols: "TLSv1.2 TLSv1.3"
+    # Cifrados seguros permitidos
+    nginx.ingress.kubernetes.io/ssl-ciphers: "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384"
+
+    # --- Cabeceras de seguridad ---
+    # Cabecera HSTS para forzar HTTPS en el navegador
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "Strict-Transport-Security: max-age=31536000; includeSubDomains; preload";
+      more_set_headers "X-Frame-Options: SAMEORIGIN";
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "X-XSS-Protection: 1; mode=block";
+      more_set_headers "Referrer-Policy: strict-origin-when-cross-origin";
+
+    # --- Configuracion de proxy ---
+    # Tamano maximo del cuerpo de las solicitudes (para subida de archivos)
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    # Tiempos de espera del proxy
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+
+    # --- Limitacion de tasa de solicitudes ---
+    # Limitar a 20 solicitudes por segundo por IP
+    nginx.ingress.kubernetes.io/limit-rps: "20"
+    # Rafaga permitida de hasta 40 solicitudes
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "2"
+    # Codigo de respuesta cuando se excede el limite
+    nginx.ingress.kubernetes.io/limit-rate-after: "0"
+
+    # --- Configuracion del balanceador de carga de AWS ---
+    # Tipo de balanceador de carga (NLB para mejor rendimiento)
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    # Esquema del balanceador (accesible desde internet)
+    service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+spec:
+  # Clase de ingress a utilizar
+  ingressClassName: nginx
+  # Configuracion de TLS con certificado wildcard
+  tls:
+    # Certificado para el dominio base
+    - hosts:
+        - hmis.example.com
+      secretName: hmis-tls-cert
+    # Certificado wildcard para subdominios de inquilinos
+    - hosts:
+        - "*.hmis.example.com"
+      secretName: hmis-wildcard-tls-cert
+  rules:
+    # Regla para el dominio base - servir el frontend
+    - host: hmis.example.com
+      http:
+        paths:
+          # Redirigir solicitudes del API al backend
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: hmis-backend
+                port:
+                  number: 80
+          # Todas las demas solicitudes van al frontend
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hmis-frontend
+                port:
+                  number: 80
+---
+# Ingress wildcard para subdominios de inquilinos
+# Cada inquilino accede via: {nombre-inquilino}.hmis.example.com
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hmis-tenant-ingress
+  namespace: hmis
+  labels:
+    app.kubernetes.io/name: hmis-tenant-ingress
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: hmis-platform
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-production"
+
+    # Redireccion forzada a HTTPS
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+
+    # Cabeceras de seguridad para subdominios de inquilinos
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "Strict-Transport-Security: max-age=31536000; includeSubDomains; preload";
+      more_set_headers "X-Frame-Options: SAMEORIGIN";
+      more_set_headers "X-Content-Type-Options: nosniff";
+
+    # Configuracion del proxy
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+
+    # Limitacion de tasa por inquilino
+    nginx.ingress.kubernetes.io/limit-rps: "20"
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "2"
+
+    # Snippet personalizado para extraer el nombre del inquilino del subdominio
+    # y pasarlo como cabecera al backend para identificacion multi-tenant
+    nginx.ingress.kubernetes.io/server-snippet: |
+      set $tenant_id "";
+      if ($host ~* ^([a-z0-9-]+)\.hmis\.example\.com$) {
+          set $tenant_id $1;
+      }
+
+    # Inyectar la cabecera X-Tenant-ID en todas las solicitudes al backend
+    nginx.ingress.kubernetes.io/proxy-set-headers: "hmis/hmis-tenant-headers"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - "*.hmis.example.com"
+      secretName: hmis-wildcard-tls-cert
+  rules:
+    # Regla wildcard para todos los subdominios de inquilinos
+    - host: "*.hmis.example.com"
+      http:
+        paths:
+          # Solicitudes del API van al backend
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: hmis-backend
+                port:
+                  number: 80
+          # Todas las demas solicitudes van al frontend
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hmis-frontend
+                port:
+                  number: 80
+---
+# ConfigMap con cabeceras personalizadas para inyectar el ID del inquilino
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hmis-tenant-headers
+  namespace: hmis
+  labels:
+    app.kubernetes.io/name: hmis-tenant-headers
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: hmis-platform
+data:
+  # Cabecera personalizada con el identificador del inquilino
+  X-Tenant-ID: "$tenant_id"
+  # Pasar el host original para validacion en el backend
+  X-Original-Host: "$host"
+---
+# ClusterIssuer de cert-manager para emitir certificados TLS con Let's Encrypt
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-production
+  labels:
+    app.kubernetes.io/part-of: hmis-platform
+spec:
+  acme:
+    # URL del servidor ACME de Let's Encrypt (produccion)
+    server: https://acme-v02.api.letsencrypt.org/directory
+    # Correo electronico para notificaciones de certificados
+    email: admin@hmis.example.com
+    # Almacenar la clave de la cuenta ACME
+    privateKeySecretRef:
+      name: letsencrypt-production-key
+    solvers:
+      # Usar reto DNS-01 para certificados wildcard (requiere Route53)
+      - dns01:
+          route53:
+            region: us-east-1
+        selector:
+          dnsZones:
+            - "hmis.example.com"
+      # Usar reto HTTP-01 para certificados de dominio especifico
+      - http01:
+          ingress:
+            class: nginx
+---
+# Certificate para solicitar el certificado wildcard explicitamente
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: hmis-wildcard-cert
+  namespace: hmis
+  labels:
+    app.kubernetes.io/part-of: hmis-platform
+spec:
+  # Nombre del secreto donde se almacenara el certificado
+  secretName: hmis-wildcard-tls-cert
+  # Referencia al emisor de certificados
+  issuerRef:
+    name: letsencrypt-production
+    kind: ClusterIssuer
+  # Dominios cubiertos por el certificado
+  dnsNames:
+    - "hmis.example.com"
+    - "*.hmis.example.com"
+  # Renovar 30 dias antes de que expire
+  renewBefore: 720h
+  # Duracion del certificado (90 dias - predeterminado de Let's Encrypt)
+  duration: 2160h

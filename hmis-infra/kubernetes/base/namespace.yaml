@@ -1,0 +1,100 @@
+# ============================================================================
+# HMIS SaaS Platform - Namespace de Kubernetes
+# Espacio de nombres aislado para todos los recursos del HMIS
+# ============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hmis
+  labels:
+    # Nombre identificador del namespace
+    app.kubernetes.io/name: hmis
+    # Parte del sistema HMIS
+    app.kubernetes.io/part-of: hmis-platform
+    # Administrado por Kubernetes directamente
+    app.kubernetes.io/managed-by: kubectl
+  annotations:
+    # Descripcion del proposito de este namespace
+    description: "Namespace principal para la plataforma HMIS SaaS"
+    # Contacto del equipo responsable
+    team: "equipo-plataforma-hmis"
+---
+# Cuota de recursos para limitar el consumo total en el namespace
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: hmis-resource-quota
+  namespace: hmis
+  labels:
+    app.kubernetes.io/part-of: hmis-platform
+spec:
+  hard:
+    # Limites de pods y servicios
+    pods: "50"
+    services: "20"
+    # Limites de CPU y memoria para solicitudes
+    requests.cpu: "20"
+    requests.memory: "40Gi"
+    # Limites maximos de CPU y memoria
+    limits.cpu: "40"
+    limits.memory: "80Gi"
+    # Limites de almacenamiento persistente
+    persistentvolumeclaims: "20"
+    requests.storage: "200Gi"
+---
+# Rango de limites predeterminados para contenedores sin especificacion explicita
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: hmis-limit-range
+  namespace: hmis
+  labels:
+    app.kubernetes.io/part-of: hmis-platform
+spec:
+  limits:
+    - type: Container
+      # Valores predeterminados si no se especifican limites
+      default:
+        cpu: "500m"
+        memory: "512Mi"
+      # Solicitudes predeterminadas si no se especifican
+      defaultRequest:
+        cpu: "100m"
+        memory: "128Mi"
+      # Limites minimos por contenedor
+      min:
+        cpu: "50m"
+        memory: "64Mi"
+      # Limites maximos por contenedor
+      max:
+        cpu: "4"
+        memory: "8Gi"
+---
+# Politica de red para restringir trafico entre pods
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hmis-default-deny
+  namespace: hmis
+  labels:
+    app.kubernetes.io/part-of: hmis-platform
+spec:
+  # Aplicar a todos los pods en el namespace
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Permitir trafico entrante solo desde dentro del namespace
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/name: hmis
+    # Permitir trafico desde el controlador de ingress
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/name: ingress-nginx
+  egress:
+    # Permitir trafico saliente a cualquier destino (necesario para AWS, APIs externas)
+    - {}

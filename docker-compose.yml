@@ -1,0 +1,122 @@
+version: "3.9"
+
+services:
+  # ===========================================
+  # PostgreSQL - Primary Database
+  # ===========================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: hmis-postgres
+    environment:
+      POSTGRES_DB: hmis
+      POSTGRES_USER: hmis_admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hmis_dev_2026}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./hmis-backend/docker/init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hmis_admin -d hmis"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===========================================
+  # Redis - Cache & Message Broker
+  # ===========================================
+  redis:
+    image: redis:7-alpine
+    container_name: hmis-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===========================================
+  # Meilisearch - Full-text Search
+  # ===========================================
+  meilisearch:
+    image: getmeili/meilisearch:v1.6
+    container_name: hmis-meilisearch
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-hmis_meili_dev_key}
+      MEILI_ENV: development
+    ports:
+      - "7700:7700"
+    volumes:
+      - meilisearch_data:/meili_data
+
+  # ===========================================
+  # Backend - FastAPI Application
+  # ===========================================
+  backend:
+    build:
+      context: ./hmis-backend
+      dockerfile: docker/Dockerfile
+    container_name: hmis-backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://hmis_admin:${POSTGRES_PASSWORD:-hmis_dev_2026}@postgres:5432/hmis
+      REDIS_URL: redis://redis:6379/0
+      MEILISEARCH_URL: http://meilisearch:7700
+      MEILISEARCH_KEY: ${MEILI_MASTER_KEY:-hmis_meili_dev_key}
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-production}
+      ENVIRONMENT: development
+      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:8000
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./hmis-backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ===========================================
+  # Frontend - Next.js Application
+  # ===========================================
+  frontend:
+    build:
+      context: ./hmis-frontend
+      dockerfile: Dockerfile
+    container_name: hmis-frontend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NEXT_PUBLIC_APP_NAME: HMIS SaaS
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./hmis-frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    command: npm run dev
+
+  # ===========================================
+  # MinIO - Object Storage (S3-compatible)
+  # ===========================================
+  minio:
+    image: minio/minio:latest
+    container_name: hmis-minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-hmis_minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-hmis_minio_2026}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+
+volumes:
+  postgres_data:
+  redis_data:
+  meilisearch_data:
+  minio_data:

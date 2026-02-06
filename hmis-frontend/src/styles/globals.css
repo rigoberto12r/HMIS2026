@@ -1,0 +1,2 @@
+/* This file re-exports the main globals.css for backwards compatibility */
+@import '../app/globals.css';

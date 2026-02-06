@@ -1,0 +1,313 @@
+# ============================================================================
+# HMIS SaaS Platform - Despliegue del Backend
+# Deployment, Service, HPA y ConfigMap para el servicio backend
+# ============================================================================
+
+# ConfigMap con variables de configuracion no sensibles
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hmis-backend-config
+  namespace: hmis
+  labels:
+    app.kubernetes.io/name: hmis-backend
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: hmis-platform
+data:
+  # Puerto en el que escucha la aplicacion
+  APP_PORT: "8000"
+  # Entorno de ejecucion
+  NODE_ENV: "production"
+  # Nivel de registro de logs
+  LOG_LEVEL: "info"
+  # Formato de logs estructurado para facilitar analisis
+  LOG_FORMAT: "json"
+  # Configuracion de la base de datos
+  DB_PORT: "5432"
+  DB_SSL: "true"
+  DB_POOL_MIN: "5"
+  DB_POOL_MAX: "20"
+  # Configuracion de Redis
+  REDIS_PORT: "6379"
+  REDIS_TLS: "true"
+  # Configuracion de almacenamiento S3
+  S3_REGION: "us-east-1"
+  # Paginacion predeterminada
+  DEFAULT_PAGE_SIZE: "25"
+  MAX_PAGE_SIZE: "100"
+  # Tiempo de expiracion de sesiones (en segundos: 8 horas)
+  SESSION_TTL: "28800"
+  # Habilitar compresion de respuestas
+  ENABLE_COMPRESSION: "true"
+  # Limite de tamano de carga de archivos (en bytes: 50MB)
+  MAX_UPLOAD_SIZE: "52428800"
+---
+# Deployment del servicio backend
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hmis-backend
+  namespace: hmis
+  labels:
+    app.kubernetes.io/name: hmis-backend
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: hmis-platform
+    app.kubernetes.io/version: "latest"
+spec:
+  # Numero inicial de replicas (gestionado por HPA)
+  replicas: 3
+  # Estrategia de actualizacion progresiva sin tiempo de inactividad
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # Maximo de pods adicionales durante la actualizacion
+      maxSurge: 1
+      # Maximo de pods no disponibles durante la actualizacion
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hmis-backend
+      app.kubernetes.io/component: backend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hmis-backend
+        app.kubernetes.io/component: backend
+        app.kubernetes.io/part-of: hmis-platform
+      annotations:
+        # Forzar redespliegue cuando cambie el ConfigMap (actualizar hash manualmente)
+        checksum/config: "placeholder-actualizar-con-hash"
+        # Habilitar recoleccion de metricas Prometheus
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      # Cuenta de servicio con permisos IRSA para acceso a AWS
+      serviceAccountName: hmis-backend-sa
+      # Asegurar que los pods se ejecuten en nodos de aplicacion
+      nodeSelector:
+        role: application
+      # Distribuir pods en diferentes nodos para alta disponibilidad
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/name
+                      operator: In
+                      values:
+                        - hmis-backend
+                topologyKey: kubernetes.io/hostname
+      # Contexto de seguridad a nivel de pod
+      securityContext:
+        # Ejecutar como usuario no root
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      # Periodo de gracia para cierre ordenado (30 segundos)
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: backend
+          # Imagen del contenedor (reemplazar con URL real de ECR)
+          image: ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/hmis-production/backend:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          # Variables de entorno desde el ConfigMap
+          envFrom:
+            - configMapRef:
+                name: hmis-backend-config
+          # Variables de entorno sensibles desde Secrets
+          env:
+            # URL de conexion a la base de datos
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: hmis-backend-secrets
+                  key: DATABASE_URL
+            # Token de autenticacion de Redis
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: hmis-backend-secrets
+                  key: REDIS_URL
+            # Clave secreta para firmar tokens JWT
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: hmis-backend-secrets
+                  key: JWT_SECRET
+            # Nombre del bucket S3 para almacenamiento
+            - name: S3_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: hmis-backend-secrets
+                  key: S3_BUCKET
+            # Clave de cifrado para datos sensibles de inquilinos
+            - name: ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hmis-backend-secrets
+                  key: ENCRYPTION_KEY
+          # Limites de recursos del contenedor
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          # Verificacion de disponibilidad - determina si el pod puede recibir trafico
+          readinessProbe:
+            httpGet:
+              path: /api/health/ready
+              port: http
+            # Esperar 10 segundos antes de la primera verificacion
+            initialDelaySeconds: 10
+            # Verificar cada 10 segundos
+            periodSeconds: 10
+            # Considerar listo despues de 1 exito
+            successThreshold: 1
+            # Considerar no listo despues de 3 fallos
+            failureThreshold: 3
+            # Tiempo maximo de espera por respuesta
+            timeoutSeconds: 5
+          # Verificacion de vida - reiniciar el pod si falla
+          livenessProbe:
+            httpGet:
+              path: /api/health/live
+              port: http
+            # Esperar mas tiempo al inicio para permitir la inicializacion
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 3
+            timeoutSeconds: 5
+          # Verificacion de inicio - evitar que readiness/liveness interfieran durante el arranque
+          startupProbe:
+            httpGet:
+              path: /api/health/live
+              port: http
+            # Permitir hasta 5 minutos para el arranque (30 intentos * 10 segundos)
+            periodSeconds: 10
+            failureThreshold: 30
+            timeoutSeconds: 5
+          # Contexto de seguridad del contenedor
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          # Montar directorio temporal para archivos de la aplicacion
+          volumeMounts:
+            - name: tmp-dir
+              mountPath: /tmp
+            - name: app-logs
+              mountPath: /app/logs
+      volumes:
+        # Directorio temporal efimero
+        - name: tmp-dir
+          emptyDir:
+            sizeLimit: "100Mi"
+        # Directorio para logs de la aplicacion
+        - name: app-logs
+          emptyDir:
+            sizeLimit: "200Mi"
+---
+# Servicio para exponer el backend dentro del cluster
+apiVersion: v1
+kind: Service
+metadata:
+  name: hmis-backend
+  namespace: hmis
+  labels:
+    app.kubernetes.io/name: hmis-backend
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: hmis-platform
+  annotations:
+    # Documentar el proposito del servicio
+    description: "Servicio interno para el backend del HMIS"
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: hmis-backend
+    app.kubernetes.io/component: backend
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+---
+# Autoescalador Horizontal de Pods basado en metricas de CPU y memoria
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: hmis-backend-hpa
+  namespace: hmis
+  labels:
+    app.kubernetes.io/name: hmis-backend
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: hmis-platform
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: hmis-backend
+  # Rango de replicas permitido
+  minReplicas: 3
+  maxReplicas: 15
+  metrics:
+    # Escalar basandose en el uso de CPU
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          # Escalar cuando el uso promedio supere el 70%
+          averageUtilization: 70
+    # Escalar basandose en el uso de memoria
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          # Escalar cuando el uso promedio supere el 80%
+          averageUtilization: 80
+  behavior:
+    # Politica de escalado hacia arriba - reaccionar rapido al aumento de carga
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+    # Politica de escalado hacia abajo - reducir gradualmente para evitar oscilaciones
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+---
+# Presupuesto de interrupcion para garantizar disponibilidad minima
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: hmis-backend-pdb
+  namespace: hmis
+  labels:
+    app.kubernetes.io/name: hmis-backend
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: hmis-platform
+spec:
+  # Garantizar que al menos 2 pods esten siempre disponibles
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hmis-backend
+      app.kubernetes.io/component: backend

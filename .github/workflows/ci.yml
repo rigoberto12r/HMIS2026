@@ -1,0 +1,556 @@
+# ============================================================================
+# HMIS SaaS Platform - Pipeline de Integracion Continua (CI)
+# Ejecuta linting, pruebas, compilacion y escaneo de seguridad
+# para el backend y frontend en cada push y pull request
+# ============================================================================
+
+name: CI - Integracion Continua
+
+on:
+  # Ejecutar en push a ramas principales
+  push:
+    branches:
+      - main
+      - develop
+      - 'release/**'
+  # Ejecutar en pull requests hacia ramas principales
+  pull_request:
+    branches:
+      - main
+      - develop
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+# Cancelar ejecuciones anteriores del mismo workflow en la misma rama
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Permisos minimos necesarios
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write
+
+# Variables de entorno compartidas entre todos los trabajos
+env:
+  NODE_VERSION: "20"
+  PYTHON_VERSION: "3.12"
+  PNPM_VERSION: "9"
+
+jobs:
+  # ===========================================================================
+  # Trabajo 1: Analisis de codigo del Backend
+  # ===========================================================================
+  backend-lint:
+    name: "Backend - Analisis de Codigo"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: hmis-backend
+
+    steps:
+      # Obtener el codigo fuente del repositorio
+      - name: Obtener codigo fuente
+        uses: actions/checkout@v4
+
+      # Configurar Python con cache de dependencias
+      - name: Configurar Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+          cache-dependency-path: hmis-backend/requirements*.txt
+
+      # Instalar dependencias del backend
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      # Ejecutar linter de codigo (Ruff - rapido y compatible con flake8)
+      - name: Ejecutar Ruff (linter)
+        run: ruff check . --output-format=github
+
+      # Verificar formato del codigo
+      - name: Verificar formato con Ruff
+        run: ruff format --check .
+
+      # Verificar tipos estaticos con mypy
+      - name: Verificar tipos con mypy
+        run: mypy . --ignore-missing-imports
+        continue-on-error: true
+
+  # ===========================================================================
+  # Trabajo 2: Pruebas del Backend
+  # ===========================================================================
+  backend-test:
+    name: "Backend - Pruebas"
+    runs-on: ubuntu-latest
+    needs: backend-lint
+    defaults:
+      run:
+        working-directory: hmis-backend
+
+    # Servicios auxiliares para las pruebas
+    services:
+      # Base de datos PostgreSQL para pruebas de integracion
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: hmis_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      # Redis para pruebas de cache y sesiones
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # Variables de entorno para las pruebas
+      DATABASE_URL: postgresql://test_user:test_password@localhost:5432/hmis_test
+      REDIS_URL: redis://localhost:6379/0
+      JWT_SECRET: test-secret-key-for-ci-only
+      ENVIRONMENT: test
+
+    steps:
+      - name: Obtener codigo fuente
+        uses: actions/checkout@v4
+
+      - name: Configurar Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+          cache-dependency-path: hmis-backend/requirements*.txt
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      # Ejecutar migraciones de base de datos para pruebas
+      - name: Ejecutar migraciones de prueba
+        run: |
+          python -m alembic upgrade head || echo "Migraciones no configuradas, continuando..."
+
+      # Ejecutar suite de pruebas con cobertura
+      - name: Ejecutar pruebas unitarias e integracion
+        run: |
+          pytest \
+            --cov=. \
+            --cov-report=xml:coverage.xml \
+            --cov-report=html:coverage-html \
+            --cov-report=term-missing \
+            --junitxml=test-results.xml \
+            -v \
+            --tb=short \
+            -x
+
+      # Subir reporte de cobertura
+      - name: Subir reporte de cobertura
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage-report
+          path: hmis-backend/coverage-html/
+          retention-days: 7
+
+      # Publicar resultados de pruebas como comentario en el PR
+      - name: Publicar resultados de pruebas
+        if: always() && github.event_name == 'pull_request'
+        uses: dorny/test-reporter@v1
+        with:
+          name: Resultados Pruebas Backend
+          path: hmis-backend/test-results.xml
+          reporter: java-junit
+
+  # ===========================================================================
+  # Trabajo 3: Compilacion del Backend
+  # ===========================================================================
+  backend-build:
+    name: "Backend - Compilacion Docker"
+    runs-on: ubuntu-latest
+    needs: backend-test
+
+    steps:
+      - name: Obtener codigo fuente
+        uses: actions/checkout@v4
+
+      # Configurar BuildKit para compilaciones mas rapidas
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Compilar imagen Docker del backend (sin push, solo verificar que compila)
+      - name: Compilar imagen Docker del backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./hmis-backend
+          push: false
+          tags: hmis-backend:ci-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # Compilar para verificar que no hay errores
+          load: true
+
+      # Verificar que la imagen se construyo correctamente
+      - name: Verificar imagen Docker
+        run: |
+          docker images hmis-backend:ci-${{ github.sha }}
+          docker inspect hmis-backend:ci-${{ github.sha }} --format='{{.Config.ExposedPorts}}'
+
+  # ===========================================================================
+  # Trabajo 4: Analisis de codigo del Frontend
+  # ===========================================================================
+  frontend-lint:
+    name: "Frontend - Analisis de Codigo"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: hmis-frontend
+
+    steps:
+      - name: Obtener codigo fuente
+        uses: actions/checkout@v4
+
+      # Configurar pnpm para gestion de paquetes
+      - name: Configurar pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      # Configurar Node.js con cache de pnpm
+      - name: Configurar Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+          cache-dependency-path: hmis-frontend/pnpm-lock.yaml
+
+      # Instalar dependencias del frontend
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      # Ejecutar linter de ESLint
+      - name: Ejecutar ESLint
+        run: pnpm run lint
+
+      # Verificar formato con Prettier
+      - name: Verificar formato con Prettier
+        run: pnpm run format:check || pnpm exec prettier --check "src/**/*.{ts,tsx,js,jsx,css,json}"
+
+      # Verificar tipos de TypeScript
+      - name: Verificar tipos TypeScript
+        run: pnpm run type-check || pnpm exec tsc --noEmit
+
+  # ===========================================================================
+  # Trabajo 5: Pruebas del Frontend
+  # ===========================================================================
+  frontend-test:
+    name: "Frontend - Pruebas"
+    runs-on: ubuntu-latest
+    needs: frontend-lint
+    defaults:
+      run:
+        working-directory: hmis-frontend
+
+    steps:
+      - name: Obtener codigo fuente
+        uses: actions/checkout@v4
+
+      - name: Configurar pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Configurar Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+          cache-dependency-path: hmis-frontend/pnpm-lock.yaml
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      # Ejecutar pruebas unitarias con cobertura
+      - name: Ejecutar pruebas unitarias
+        run: |
+          pnpm run test -- \
+            --coverage \
+            --coverageReporters=text \
+            --coverageReporters=lcov \
+            --coverageReporters=json-summary \
+            --ci \
+            --reporters=default \
+            --reporters=jest-junit
+        env:
+          JEST_JUNIT_OUTPUT_DIR: ./test-results
+          JEST_JUNIT_OUTPUT_NAME: junit.xml
+
+      # Subir reporte de cobertura del frontend
+      - name: Subir reporte de cobertura
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage-report
+          path: hmis-frontend/coverage/
+          retention-days: 7
+
+  # ===========================================================================
+  # Trabajo 6: Compilacion del Frontend
+  # ===========================================================================
+  frontend-build:
+    name: "Frontend - Compilacion"
+    runs-on: ubuntu-latest
+    needs: frontend-test
+    defaults:
+      run:
+        working-directory: hmis-frontend
+
+    steps:
+      - name: Obtener codigo fuente
+        uses: actions/checkout@v4
+
+      - name: Configurar pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Configurar Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+          cache-dependency-path: hmis-frontend/pnpm-lock.yaml
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      # Compilar la aplicacion para produccion
+      - name: Compilar aplicacion para produccion
+        run: pnpm run build
+        env:
+          NODE_ENV: production
+
+      # Verificar que los archivos compilados se generaron
+      - name: Verificar artefactos de compilacion
+        run: |
+          echo "Archivos generados:"
+          ls -la dist/ 2>/dev/null || ls -la build/ 2>/dev/null || echo "Directorio de salida no encontrado"
+          echo "Tamano total:"
+          du -sh dist/ 2>/dev/null || du -sh build/ 2>/dev/null || true
+
+      # Guardar artefactos de compilacion para el pipeline de despliegue
+      - name: Guardar artefactos de compilacion
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: |
+            hmis-frontend/dist/
+            hmis-frontend/build/
+          retention-days: 3
+
+      # Compilar imagen Docker del frontend
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Compilar imagen Docker del frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./hmis-frontend
+          push: false
+          tags: hmis-frontend:ci-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ===========================================================================
+  # Trabajo 7: Escaneo de Seguridad
+  # ===========================================================================
+  security-scan:
+    name: "Escaneo de Seguridad"
+    runs-on: ubuntu-latest
+    # Ejecutar en paralelo con las pruebas para no retrasar el pipeline
+    needs: [backend-lint, frontend-lint]
+
+    steps:
+      - name: Obtener codigo fuente
+        uses: actions/checkout@v4
+
+      # Escaneo de dependencias del backend con Safety
+      - name: Configurar Python para escaneo
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Escanear dependencias Python con pip-audit
+        run: |
+          pip install pip-audit
+          pip-audit -r hmis-backend/requirements.txt --format json --output backend-audit.json || true
+          pip-audit -r hmis-backend/requirements.txt || true
+        continue-on-error: true
+
+      # Escaneo de dependencias del frontend con npm audit
+      - name: Configurar pnpm para escaneo
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Configurar Node.js para escaneo
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Escanear dependencias Node.js
+        run: |
+          cd hmis-frontend
+          pnpm audit --json > ../frontend-audit.json || true
+          pnpm audit || true
+        continue-on-error: true
+
+      # Escaneo de secretos en el codigo con Gitleaks
+      - name: Escanear secretos con Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      # Escaneo de vulnerabilidades con Trivy
+      - name: Escanear con Trivy (vulnerabilidades del filesystem)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          format: "sarif"
+          output: "trivy-results.sarif"
+          severity: "CRITICAL,HIGH"
+        continue-on-error: true
+
+      # Subir resultados de Trivy a GitHub Security
+      - name: Subir resultados de Trivy a GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: "trivy-results.sarif"
+        continue-on-error: true
+
+      # Analisis estatico de seguridad con CodeQL
+      - name: Inicializar CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript, python
+        continue-on-error: true
+
+      - name: Ejecutar analisis CodeQL
+        uses: github/codeql-action/analyze@v3
+        continue-on-error: true
+
+      # Subir reportes de auditoria como artefactos
+      - name: Subir reportes de seguridad
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            backend-audit.json
+            frontend-audit.json
+            trivy-results.sarif
+          retention-days: 30
+
+  # ===========================================================================
+  # Trabajo 8: Verificacion de Infraestructura
+  # ===========================================================================
+  infra-validate:
+    name: "Validar Infraestructura"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Obtener codigo fuente
+        uses: actions/checkout@v4
+
+      # Validar configuracion de Terraform
+      - name: Configurar Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"
+
+      - name: Validar sintaxis de Terraform
+        run: |
+          cd hmis-infra/terraform
+          terraform init -backend=false
+          terraform validate
+          terraform fmt -check -recursive
+
+      # Validar manifiestos de Kubernetes
+      - name: Validar manifiestos de Kubernetes
+        run: |
+          # Instalar kubeval para validacion de manifiestos
+          wget -q https://github.com/instrumenta/kubeval/releases/latest/download/kubeval-linux-amd64.tar.gz
+          tar xzf kubeval-linux-amd64.tar.gz
+          chmod +x kubeval
+          # Validar cada archivo YAML de Kubernetes
+          for f in hmis-infra/kubernetes/base/*.yaml; do
+            echo "Validando: $f"
+            ./kubeval "$f" --strict --ignore-missing-schemas || true
+          done
+
+      # Escaneo de seguridad de la infraestructura con Checkov
+      - name: Escanear infraestructura con Checkov
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: hmis-infra/
+          framework: terraform,kubernetes
+          output_format: cli
+          soft_fail: true
+
+  # ===========================================================================
+  # Trabajo 9: Resumen del CI (gate final)
+  # ===========================================================================
+  ci-summary:
+    name: "Resumen CI"
+    runs-on: ubuntu-latest
+    # Este trabajo es el gate final - depende de todos los anteriores
+    needs:
+      - backend-build
+      - frontend-build
+      - security-scan
+      - infra-validate
+    if: always()
+
+    steps:
+      # Verificar el estado de todos los trabajos anteriores
+      - name: Verificar estado del pipeline
+        run: |
+          echo "=== Resumen del Pipeline de CI ==="
+          echo "Backend Build:    ${{ needs.backend-build.result }}"
+          echo "Frontend Build:   ${{ needs.frontend-build.result }}"
+          echo "Security Scan:    ${{ needs.security-scan.result }}"
+          echo "Infra Validate:   ${{ needs.infra-validate.result }}"
+          echo "=================================="
+
+          # Fallar si alguno de los trabajos criticos fallo
+          if [[ "${{ needs.backend-build.result }}" == "failure" ]] || \
+             [[ "${{ needs.frontend-build.result }}" == "failure" ]]; then
+            echo "ERROR: Uno o mas trabajos criticos fallaron"
+            exit 1
+          fi
+
+          echo "Pipeline de CI completado exitosamente"
