@@ -57,6 +57,10 @@ class Settings(BaseSettings):
     TENANT_HEADER: str = "X-Tenant-ID"
     TENANT_SUBDOMAIN_ENABLED: bool = True
 
+    # --- Observabilidad (Sentry + Logging) ---
+    SENTRY_DSN: str = ""  # Dejar vacio para desactivar Sentry
+    LOG_LEVEL: str = "INFO"
+
     # --- Paginacion ---
     DEFAULT_PAGE_SIZE: int = 20
     MAX_PAGE_SIZE: int = 100

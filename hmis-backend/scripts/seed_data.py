@@ -198,6 +198,164 @@ async def seed_warehouses(db: AsyncSession) -> None:
     print(f"  ✓ {len(warehouses)} almacenes creados")
 
 
+async def seed_icd10_catalog(db: AsyncSession) -> None:
+    """Crea catalogo de codigos ICD-10 mas comunes en Latinoamerica."""
+    from app.modules.patients.models import Patient
+
+    # Top 50 diagnosticos frecuentes en atencion primaria LatAm
+    icd10_codes = [
+        # Enfermedades infecciosas
+        ("A09", "Diarrea y gastroenteritis de presunto origen infeccioso"),
+        ("B34.9", "Infeccion viral, no especificada"),
+        # Neoplasias
+        ("C50.9", "Tumor maligno de la mama, no especificado"),
+        ("D25.9", "Leiomioma del utero, no especificado"),
+        # Enfermedades de la sangre
+        ("D50.9", "Anemia por deficiencia de hierro, no especificada"),
+        # Enfermedades endocrinas
+        ("E11.9", "Diabetes mellitus tipo 2, sin complicaciones"),
+        ("E03.9", "Hipotiroidismo, no especificado"),
+        ("E78.5", "Hiperlipidemia, no especificada"),
+        ("E66.9", "Obesidad, no especificada"),
+        # Trastornos mentales
+        ("F32.9", "Episodio depresivo, no especificado"),
+        ("F41.1", "Trastorno de ansiedad generalizada"),
+        # Sistema nervioso
+        ("G43.9", "Migrana, no especificada"),
+        # Ojo y anexos
+        ("H10.9", "Conjuntivitis, no especificada"),
+        # Oido
+        ("H66.9", "Otitis media, no especificada"),
+        # Sistema circulatorio
+        ("I10", "Hipertension esencial (primaria)"),
+        ("I25.9", "Cardiopatia isquemica cronica, no especificada"),
+        ("I63.9", "Infarto cerebral, no especificado"),
+        ("I83.9", "Varices de miembros inferiores sin ulcera ni inflamacion"),
+        # Sistema respiratorio
+        ("J00", "Rinofaringitis aguda (resfriado comun)"),
+        ("J02.9", "Faringitis aguda, no especificada"),
+        ("J06.9", "Infeccion aguda de vias respiratorias superiores, no especificada"),
+        ("J18.9", "Neumonia, no especificada"),
+        ("J20.9", "Bronquitis aguda, no especificada"),
+        ("J30.1", "Rinitis alergica debida a polen"),
+        ("J45.9", "Asma, no especificado"),
+        # Sistema digestivo
+        ("K21.0", "Enfermedad por reflujo gastroesofagico con esofagitis"),
+        ("K29.7", "Gastritis, no especificada"),
+        ("K30", "Dispepsia funcional"),
+        ("K35.8", "Apendicitis aguda, otra y la no especificada"),
+        ("K59.0", "Constipacion"),
+        ("K76.0", "Higado graso, no clasificado en otra parte"),
+        # Piel
+        ("L30.9", "Dermatitis, no especificada"),
+        ("L50.9", "Urticaria, no especificada"),
+        # Sistema musculoesqueletico
+        ("M54.5", "Lumbago no especificado"),
+        ("M79.3", "Paniculitis, no especificada"),
+        # Sistema genitourinario
+        ("N39.0", "Infeccion de vias urinarias, sitio no especificado"),
+        ("N76.0", "Vaginitis aguda"),
+        # Embarazo
+        ("O80", "Parto unico espontaneo"),
+        ("O26.9", "Afeccion relacionada con el embarazo, no especificada"),
+        # Periodo perinatal
+        ("P07.3", "Otros recien nacidos pretermino"),
+        # Malformaciones congenitas
+        ("Q66.0", "Pie equinovaro"),
+        # Sintomas y signos
+        ("R10.4", "Otros dolores abdominales y los no especificados"),
+        ("R50.9", "Fiebre, no especificada"),
+        ("R51", "Cefalea"),
+        # Traumatismos
+        ("S62.6", "Fractura de otros dedos de la mano"),
+        ("S93.4", "Esguince de tobillo"),
+        ("T78.4", "Alergia no especificada"),
+        # Factores de salud
+        ("Z00.0", "Examen medico general"),
+        ("Z12.3", "Pesquisa especial para tumor de mama"),
+        ("Z23", "Necesidad de vacunacion contra enfermedades bacterianas unicas"),
+        ("Z30.0", "Consejo y asesoramiento general sobre la anticoncepcion"),
+    ]
+
+    # Insertar via SQL directo para usar la tabla de diagnosticos como catalogo
+    for code, description in icd10_codes:
+        await db.execute(
+            text(
+                "INSERT INTO icd10_catalog (id, code, description) "
+                "VALUES (:id, :code, :description) ON CONFLICT DO NOTHING"
+            ),
+            {"id": uuid.uuid4(), "code": code, "description": description},
+        )
+    await db.flush()
+    print(f"  ✓ {len(icd10_codes)} codigos ICD-10 en catalogo")
+
+
+async def seed_sample_patients(db: AsyncSession) -> None:
+    """Crea pacientes de ejemplo para demos."""
+    from app.modules.patients.models import Patient
+
+    patients = [
+        {
+            "mrn": "HMIS-00000001", "document_type": "cedula", "document_number": "00112345678",
+            "first_name": "Juan", "last_name": "Perez", "second_last_name": "Garcia",
+            "birth_date": date(1985, 3, 15), "gender": "M", "blood_type": "O+",
+            "phone": "809-555-0100", "email": "juan.perez@email.com",
+            "address_line1": "Calle Principal #123", "city": "Santo Domingo",
+            "state_province": "Distrito Nacional", "country": "DO", "status": "active",
+        },
+        {
+            "mrn": "HMIS-00000002", "document_type": "cedula", "document_number": "00298765432",
+            "first_name": "Maria", "last_name": "Rodriguez", "second_last_name": "Santos",
+            "birth_date": date(1990, 7, 22), "gender": "F", "blood_type": "A+",
+            "phone": "809-555-0200", "email": "maria.rodriguez@email.com",
+            "address_line1": "Av. 27 de Febrero #456", "city": "Santiago",
+            "state_province": "Santiago", "country": "DO", "status": "active",
+        },
+        {
+            "mrn": "HMIS-00000003", "document_type": "cedula", "document_number": "00387654321",
+            "first_name": "Carlos", "last_name": "Martinez", "second_last_name": "Diaz",
+            "birth_date": date(1978, 11, 5), "gender": "M", "blood_type": "B+",
+            "phone": "809-555-0300", "email": "carlos.martinez@email.com",
+            "address_line1": "Calle El Conde #789", "city": "Santo Domingo",
+            "state_province": "Distrito Nacional", "country": "DO", "status": "active",
+        },
+        {
+            "mrn": "HMIS-00000004", "document_type": "pasaporte", "document_number": "PE12345678",
+            "first_name": "Ana", "last_name": "Gutierrez", "second_last_name": "Lopez",
+            "birth_date": date(1995, 2, 14), "gender": "F", "blood_type": "AB+",
+            "phone": "829-555-0400", "email": "ana.gutierrez@email.com",
+            "address_line1": "Residencial Los Pinos, Apt 5B", "city": "Punta Cana",
+            "state_province": "La Altagracia", "country": "DO", "status": "active",
+        },
+        {
+            "mrn": "HMIS-00000005", "document_type": "cedula", "document_number": "00456789012",
+            "first_name": "Pedro", "last_name": "Hernandez", "second_last_name": "Reyes",
+            "birth_date": date(1962, 9, 30), "gender": "M", "blood_type": "O-",
+            "phone": "809-555-0500", "email": "pedro.hernandez@email.com",
+            "address_line1": "Calle Duarte #321", "city": "La Vega",
+            "state_province": "La Vega", "country": "DO", "status": "active",
+        },
+    ]
+
+    for p in patients:
+        db.add(Patient(**p))
+    await db.flush()
+    print(f"  ✓ {len(patients)} pacientes de ejemplo creados")
+
+
+async def _create_icd10_table(db: AsyncSession) -> None:
+    """Crea tabla de catalogo ICD-10 si no existe."""
+    await db.execute(text("""
+        CREATE TABLE IF NOT EXISTS icd10_catalog (
+            id UUID PRIMARY KEY,
+            code VARCHAR(10) NOT NULL UNIQUE,
+            description VARCHAR(500) NOT NULL,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        )
+    """))
+    await db.flush()
+
+
 async def main():
     """Ejecuta el seeding completo."""
     print("\n🏥 HMIS SaaS - Seeding de datos iniciales\n")
@@ -218,6 +376,9 @@ async def main():
             await seed_admin_user(db, roles["admin"])
             await seed_demo_users(db, roles)
 
+            print("\n🏥 Creando pacientes de ejemplo...")
+            await seed_sample_patients(db)
+
             print("\n💰 Creando catalogo de servicios...")
             await seed_service_catalog(db)
 
@@ -227,9 +388,17 @@ async def main():
             print("\n🏪 Creando almacenes...")
             await seed_warehouses(db)
 
+            print("\n📖 Creando catalogo ICD-10...")
+            await _create_icd10_table(db)
+            await seed_icd10_catalog(db)
+
             await db.commit()
             print("\n" + "=" * 50)
-            print("✅ Seeding completado exitosamente!\n")
+            print("✅ Seeding completado exitosamente!")
+            print("\n  Credenciales de acceso:")
+            print("  Admin:  admin@hmis.app / Admin2026!")
+            print("  Demo:   dr.martinez@hmis.app / Demo2026!")
+            print()
 
         except Exception as e:
             await db.rollback()
