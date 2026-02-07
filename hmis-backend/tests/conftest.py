@@ -19,6 +19,20 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 
+# =============================================
+# Compatibilidad SQLite: tipos PostgreSQL no soportados nativamente.
+# Se registran ANTES de importar modelos o crear tablas.
+# =============================================
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.compiler import compiles
+
+
+@compiles(JSONB, "sqlite")
+def _compile_jsonb_sqlite(element, compiler, **kw):
+    """Renderiza columnas JSONB como JSON en SQLite para tests."""
+    return "JSON"
+
+
 from app.core.database import Base, get_db
 from app.core.security import create_access_token, hash_password
 

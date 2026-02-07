@@ -280,7 +280,11 @@ class DispensationService:
         - Actualiza niveles de stock
         """
         # Verificar prescripcion
-        stmt = select(Prescription).where(Prescription.id == data.prescription_id)
+        stmt = (
+            select(Prescription)
+            .where(Prescription.id == data.prescription_id)
+            .options(selectinload(Prescription.dispensations))
+        )
         result = await self.db.execute(stmt)
         prescription = result.scalar_one_or_none()
 

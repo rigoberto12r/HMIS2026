@@ -78,7 +78,7 @@ class TestPrescriptionServiceCreacion:
 
         # Mock del AllergyService - sin alergias
         with patch(
-            "app.modules.pharmacy.service.AllergyService"
+            "app.modules.emr.service.AllergyService"
         ) as MockAllergyService:
             mock_allergy_service = MockAllergyService.return_value
             mock_allergy_service.check_drug_allergy = AsyncMock(return_value=[])
@@ -115,7 +115,7 @@ class TestPrescriptionServiceCreacion:
         service = PrescriptionService(db)
 
         with patch(
-            "app.modules.pharmacy.service.AllergyService"
+            "app.modules.emr.service.AllergyService"
         ) as MockAllergyService:
             mock_allergy_service = MockAllergyService.return_value
             mock_allergy_service.check_drug_allergy = AsyncMock(return_value=[])
@@ -164,7 +164,7 @@ class TestPrescriptionServiceAlergias:
         service = PrescriptionService(db)
 
         with patch(
-            "app.modules.pharmacy.service.AllergyService"
+            "app.modules.emr.service.AllergyService"
         ) as MockAllergyService:
             mock_allergy_service = MockAllergyService.return_value
             mock_allergy_service.check_drug_allergy = AsyncMock(
@@ -220,7 +220,7 @@ class TestPrescriptionServiceAlergias:
         service = PrescriptionService(db)
 
         with patch(
-            "app.modules.pharmacy.service.AllergyService"
+            "app.modules.emr.service.AllergyService"
         ) as MockAllergyService:
             mock_allergy_service = MockAllergyService.return_value
             mock_allergy_service.check_drug_allergy = AsyncMock(
@@ -252,7 +252,7 @@ class TestPrescriptionServiceAlergias:
         service = PrescriptionService(db)
 
         with patch(
-            "app.modules.pharmacy.service.AllergyService"
+            "app.modules.emr.service.AllergyService"
         ) as MockAllergyService:
             mock_allergy_service = MockAllergyService.return_value
             mock_allergy_service.check_drug_allergy = AsyncMock(return_value=[])
@@ -293,7 +293,7 @@ class TestPrescriptionServiceAlergias:
         service = PrescriptionService(db)
 
         with patch(
-            "app.modules.pharmacy.service.AllergyService"
+            "app.modules.emr.service.AllergyService"
         ) as MockAllergyService:
             mock_allergy_service = MockAllergyService.return_value
             mock_allergy_service.check_drug_allergy = AsyncMock(
@@ -333,7 +333,7 @@ class TestPrescriptionServiceAlergias:
         service = PrescriptionService(db)
 
         with patch(
-            "app.modules.pharmacy.service.AllergyService"
+            "app.modules.emr.service.AllergyService"
         ) as MockAllergyService:
             mock_allergy_service = MockAllergyService.return_value
             mock_allergy_service.check_drug_allergy = AsyncMock(return_value=[])

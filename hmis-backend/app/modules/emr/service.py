@@ -384,10 +384,11 @@ class AllergyService:
             Allergy.allergen_type == "drug",
             Allergy.status == "active",
             Allergy.is_active == True,
-            Allergy.allergen.ilike(f"%{drug_name}%"),
         )
         result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        all_drug_allergies = list(result.scalars().all())
+        drug_lower = drug_name.lower()
+        return [a for a in all_drug_allergies if a.allergen.lower() in drug_lower]
 
     async def update_allergy(
         self, allergy_id: uuid.UUID, data: AllergyUpdate,
