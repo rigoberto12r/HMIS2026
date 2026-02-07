@@ -13,6 +13,7 @@ from sqlalchemy.orm import selectinload
 from app.modules.emr.models import (
     Allergy,
     ClinicalNote,
+    ClinicalTemplate,
     Diagnosis,
     Encounter,
     MedicalOrder,
@@ -20,12 +21,16 @@ from app.modules.emr.models import (
     VitalSigns,
 )
 from app.modules.emr.schemas import (
+    AllergyUpdate,
     ClinicalNoteCreate,
     DiagnosisCreate,
+    DiagnosisUpdate,
     EncounterCreate,
     EncounterUpdate,
     MedicalOrderCreate,
     MedicalOrderStatusUpdate,
+    ProblemListCreate,
+    ProblemListUpdate,
     VitalSignsCreate,
 )
 from app.shared.events import (
@@ -109,12 +114,50 @@ class EncounterService:
 
         return encounter
 
+    async def update_encounter(
+        self, encounter_id: uuid.UUID, data: EncounterUpdate,
+        updated_by: uuid.UUID | None = None,
+    ) -> Encounter | None:
+        """Actualiza campos de un encuentro en progreso."""
+        stmt = select(Encounter).where(
+            Encounter.id == encounter_id, Encounter.is_active == True
+        )
+        result = await self.db.execute(stmt)
+        encounter = result.scalar_one_or_none()
+        if not encounter:
+            return None
+        if encounter.status == "completed":
+            raise ValueError("No se puede modificar un encuentro completado")
+        if data.chief_complaint is not None:
+            encounter.chief_complaint = data.chief_complaint
+        if data.disposition is not None:
+            encounter.disposition = data.disposition
+        encounter.updated_by = updated_by
+        await self.db.flush()
+        return encounter
+
+    async def cancel_encounter(
+        self, encounter_id: uuid.UUID, updated_by: uuid.UUID | None = None
+    ) -> Encounter | None:
+        """Cancela un encuentro clinico."""
+        encounter = await self.get_encounter(encounter_id)
+        if not encounter:
+            return None
+        if encounter.status == "completed":
+            raise ValueError("No se puede cancelar un encuentro completado")
+        encounter.status = "cancelled"
+        encounter.updated_by = updated_by
+        await self.db.flush()
+        return encounter
+
     async def list_encounters(
         self,
         patient_id: uuid.UUID | None = None,
         provider_id: uuid.UUID | None = None,
         encounter_type: str | None = None,
         status: str | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
         offset: int = 0,
         limit: int = 20,
     ) -> tuple[list[Encounter], int]:
@@ -134,6 +177,12 @@ class EncounterService:
         if status:
             stmt = stmt.where(Encounter.status == status)
             count_stmt = count_stmt.where(Encounter.status == status)
+        if date_from:
+            stmt = stmt.where(Encounter.start_datetime >= date_from)
+            count_stmt = count_stmt.where(Encounter.start_datetime >= date_from)
+        if date_to:
+            stmt = stmt.where(Encounter.start_datetime <= date_to)
+            count_stmt = count_stmt.where(Encounter.start_datetime <= date_to)
 
         count_result = await self.db.execute(count_stmt)
         total = count_result.scalar() or 0
@@ -201,6 +250,22 @@ class ClinicalNoteService:
 
         return note
 
+    async def get_note(self, note_id: uuid.UUID) -> ClinicalNote | None:
+        """Obtiene una nota clinica por ID."""
+        stmt = select(ClinicalNote).where(ClinicalNote.id == note_id)
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_encounter_notes(self, encounter_id: uuid.UUID) -> list[ClinicalNote]:
+        """Lista notas de un encuentro."""
+        stmt = (
+            select(ClinicalNote)
+            .where(ClinicalNote.encounter_id == encounter_id)
+            .order_by(ClinicalNote.created_at.desc())
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
 
 class DiagnosisService:
     """Servicio de diagnosticos."""
@@ -231,6 +296,26 @@ class DiagnosisService:
         stmt = stmt.order_by(Diagnosis.created_at.desc())
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
+
+    async def update_diagnosis(
+        self, diagnosis_id: uuid.UUID, data: DiagnosisUpdate,
+        updated_by: uuid.UUID | None = None,
+    ) -> Diagnosis | None:
+        """Actualiza un diagnostico (ej: marcar como resuelto)."""
+        stmt = select(Diagnosis).where(Diagnosis.id == diagnosis_id, Diagnosis.is_active == True)
+        result = await self.db.execute(stmt)
+        diagnosis = result.scalar_one_or_none()
+        if not diagnosis:
+            return None
+        if data.status is not None:
+            diagnosis.status = data.status
+        if data.resolved_date is not None:
+            diagnosis.resolved_date = data.resolved_date
+        if data.notes is not None:
+            diagnosis.notes = data.notes
+        diagnosis.updated_by = updated_by
+        await self.db.flush()
+        return diagnosis
 
 
 class VitalSignsService:
@@ -304,6 +389,26 @@ class AllergyService:
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
+    async def update_allergy(
+        self, allergy_id: uuid.UUID, data: AllergyUpdate,
+        updated_by: uuid.UUID | None = None,
+    ) -> Allergy | None:
+        """Actualiza una alergia."""
+        stmt = select(Allergy).where(Allergy.id == allergy_id, Allergy.is_active == True)
+        result = await self.db.execute(stmt)
+        allergy = result.scalar_one_or_none()
+        if not allergy:
+            return None
+        if data.severity is not None:
+            allergy.severity = data.severity
+        if data.reaction is not None:
+            allergy.reaction = data.reaction
+        if data.status is not None:
+            allergy.status = data.status
+        allergy.updated_by = updated_by
+        await self.db.flush()
+        return allergy
+
 
 class MedicalOrderService:
     """Servicio de ordenes medicas."""
@@ -357,3 +462,134 @@ class MedicalOrderService:
 
         await self.db.flush()
         return order
+
+    async def get_order(self, order_id: uuid.UUID) -> MedicalOrder | None:
+        """Obtiene una orden por ID."""
+        stmt = select(MedicalOrder).where(MedicalOrder.id == order_id)
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_encounter_orders(self, encounter_id: uuid.UUID) -> list[MedicalOrder]:
+        """Lista ordenes de un encuentro."""
+        stmt = (
+            select(MedicalOrder)
+            .where(MedicalOrder.encounter_id == encounter_id)
+            .order_by(MedicalOrder.created_at.desc())
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+
+class ProblemListService:
+    """Servicio de lista de problemas del paciente."""
+
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    async def add_problem(
+        self, data: ProblemListCreate, created_by: uuid.UUID | None = None
+    ) -> PatientProblemList:
+        """Agrega un problema a la lista del paciente."""
+        problem = PatientProblemList(
+            **data.model_dump(),
+            created_by=created_by,
+        )
+        self.db.add(problem)
+        await self.db.flush()
+        return problem
+
+    async def get_patient_problems(
+        self, patient_id: uuid.UUID, status: str | None = None
+    ) -> list[PatientProblemList]:
+        """Obtiene la lista de problemas de un paciente."""
+        stmt = select(PatientProblemList).where(
+            PatientProblemList.patient_id == patient_id,
+            PatientProblemList.is_active == True,
+        )
+        if status:
+            stmt = stmt.where(PatientProblemList.status == status)
+        stmt = stmt.order_by(PatientProblemList.created_at.desc())
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def update_problem(
+        self, problem_id: uuid.UUID, data: ProblemListUpdate,
+        updated_by: uuid.UUID | None = None,
+    ) -> PatientProblemList | None:
+        """Actualiza un problema (ej: marcar resuelto/inactivo)."""
+        stmt = select(PatientProblemList).where(
+            PatientProblemList.id == problem_id, PatientProblemList.is_active == True
+        )
+        result = await self.db.execute(stmt)
+        problem = result.scalar_one_or_none()
+        if not problem:
+            return None
+        if data.status is not None:
+            problem.status = data.status
+        if data.notes is not None:
+            problem.notes = data.notes
+        problem.updated_by = updated_by
+        await self.db.flush()
+        return problem
+
+    async def remove_problem(
+        self, problem_id: uuid.UUID, updated_by: uuid.UUID | None = None
+    ) -> bool:
+        """Elimina (soft delete) un problema de la lista."""
+        stmt = select(PatientProblemList).where(PatientProblemList.id == problem_id)
+        result = await self.db.execute(stmt)
+        problem = result.scalar_one_or_none()
+        if not problem:
+            return False
+        problem.is_active = False
+        problem.updated_by = updated_by
+        await self.db.flush()
+        return True
+
+
+class ClinicalTemplateService:
+    """Servicio de plantillas clinicas."""
+
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    async def create_template(
+        self, data: dict, created_by: uuid.UUID | None = None
+    ) -> ClinicalTemplate:
+        """Crea una plantilla clinica."""
+        template = ClinicalTemplate(**data, created_by=created_by)
+        self.db.add(template)
+        await self.db.flush()
+        return template
+
+    async def get_template(self, template_id: uuid.UUID) -> ClinicalTemplate | None:
+        stmt = select(ClinicalTemplate).where(
+            ClinicalTemplate.id == template_id, ClinicalTemplate.is_active == True
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def list_templates(
+        self, specialty_code: str | None = None, template_type: str | None = None
+    ) -> list[ClinicalTemplate]:
+        """Lista plantillas con filtros opcionales."""
+        stmt = select(ClinicalTemplate).where(ClinicalTemplate.is_active == True)
+        if specialty_code:
+            stmt = stmt.where(ClinicalTemplate.specialty_code == specialty_code)
+        if template_type:
+            stmt = stmt.where(ClinicalTemplate.template_type == template_type)
+        stmt = stmt.order_by(ClinicalTemplate.name)
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def delete_template(
+        self, template_id: uuid.UUID, updated_by: uuid.UUID | None = None
+    ) -> bool:
+        """Elimina (soft delete) una plantilla."""
+        template = await self.get_template(template_id)
+        if not template:
+            return False
+        template.is_active = False
+        template.updated_by = updated_by
+        await self.db.flush()
+        return True

@@ -225,3 +225,89 @@ class PurchaseOrderResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# =============================================
+# Almacenes
+# =============================================
+
+class WarehouseCreate(BaseModel):
+    """Creacion de almacen."""
+    name: str = Field(max_length=200)
+    warehouse_type: str = Field(default="central", description="central, satellite, floor_stock, emergency_cart")
+    location_description: str | None = None
+    manager_id: uuid.UUID | None = None
+
+
+class WarehouseResponse(BaseModel):
+    """Respuesta de almacen."""
+    id: uuid.UUID
+    name: str
+    warehouse_type: str
+    location_description: str | None = None
+    manager_id: uuid.UUID | None = None
+    status: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# =============================================
+# Actualizaciones
+# =============================================
+
+class ProductUpdate(BaseModel):
+    """Actualizacion de producto."""
+    name: str | None = None
+    generic_name: str | None = None
+    presentation: str | None = None
+    concentration: str | None = None
+    controlled_substance_level: int | None = Field(default=None, ge=0, le=5)
+    requires_cold_chain: bool | None = None
+    requires_prescription: bool | None = None
+    status: str | None = Field(default=None, description="active, discontinued, recalled")
+
+
+class PrescriptionCancel(BaseModel):
+    """Cancelacion de prescripcion."""
+    reason: str = Field(max_length=500)
+
+
+class PurchaseOrderStatusUpdate(BaseModel):
+    """Actualizacion de estado de orden de compra."""
+    status: str = Field(description="approved, ordered, received, cancelled")
+    notes: str | None = None
+
+
+# =============================================
+# Sustancias Controladas
+# =============================================
+
+class ControlledSubstanceLogResponse(BaseModel):
+    """Respuesta de registro de sustancia controlada."""
+    id: uuid.UUID
+    product_id: uuid.UUID
+    lot_id: uuid.UUID | None = None
+    action: str
+    quantity: int
+    balance_after: int
+    patient_id: uuid.UUID | None = None
+    performed_by: uuid.UUID
+    witnessed_by: uuid.UUID | None = None
+    performed_at: datetime
+    notes: str | None = None
+
+    model_config = {"from_attributes": True}
+
+
+# =============================================
+# Stock
+# =============================================
+
+class StockLevelCreate(BaseModel):
+    """Inicializacion de nivel de stock."""
+    product_id: uuid.UUID
+    warehouse_id: uuid.UUID
+    quantity_on_hand: int = Field(default=0, ge=0)
+    reorder_point: int = Field(default=10, ge=0)
+    max_level: int = Field(default=100, ge=0)

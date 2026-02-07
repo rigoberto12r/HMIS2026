@@ -264,3 +264,64 @@ class ProblemListResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# =============================================
+# Actualizacion de Diagnosticos
+# =============================================
+
+class DiagnosisUpdate(BaseModel):
+    """Actualizacion de diagnostico."""
+    status: str | None = Field(default=None, description="active, resolved, chronic")
+    resolved_date: date | None = None
+    notes: str | None = None
+
+
+# =============================================
+# Actualizacion de Alergias
+# =============================================
+
+class AllergyUpdate(BaseModel):
+    """Actualizacion de alergia."""
+    severity: str | None = None
+    reaction: str | None = None
+    status: str | None = Field(default=None, description="active, inactive, resolved")
+
+
+# =============================================
+# Plantillas Clinicas
+# =============================================
+
+class ClinicalTemplateCreate(BaseModel):
+    """Creacion de plantilla clinica."""
+    name: str = Field(max_length=200)
+    specialty_code: str | None = Field(default=None, max_length=20)
+    template_type: str = Field(description="soap, procedure, discharge, admission")
+    schema_json: dict[str, Any]
+    ui_layout_json: dict[str, Any] | None = None
+    is_default: bool = False
+
+
+class ClinicalTemplateResponse(BaseModel):
+    """Respuesta de plantilla clinica."""
+    id: uuid.UUID
+    name: str
+    specialty_code: str | None = None
+    template_type: str
+    version: int
+    schema_json: dict[str, Any]
+    ui_layout_json: dict[str, Any] | None = None
+    is_default: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# =============================================
+# Actualizacion de Lista de Problemas
+# =============================================
+
+class ProblemListUpdate(BaseModel):
+    """Actualizacion de problema en lista."""
+    status: str | None = Field(default=None, description="active, inactive, resolved")
+    notes: str | None = None

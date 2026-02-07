@@ -15,10 +15,14 @@ from app.modules.auth.models import User
 from app.modules.emr.schemas import (
     AllergyCreate,
     AllergyResponse,
+    AllergyUpdate,
     ClinicalNoteCreate,
     ClinicalNoteResponse,
+    ClinicalTemplateCreate,
+    ClinicalTemplateResponse,
     DiagnosisCreate,
     DiagnosisResponse,
+    DiagnosisUpdate,
     EncounterCreate,
     EncounterListResponse,
     EncounterResponse,
@@ -28,15 +32,18 @@ from app.modules.emr.schemas import (
     MedicalOrderStatusUpdate,
     ProblemListCreate,
     ProblemListResponse,
+    ProblemListUpdate,
     VitalSignsCreate,
     VitalSignsResponse,
 )
 from app.modules.emr.service import (
     AllergyService,
     ClinicalNoteService,
+    ClinicalTemplateService,
     DiagnosisService,
     EncounterService,
     MedicalOrderService,
+    ProblemListService,
     VitalSignsService,
 )
 from app.shared.schemas import MessageResponse, PaginatedResponse, PaginationParams
@@ -123,6 +130,46 @@ async def complete_encounter(
     return EncounterResponse.model_validate(encounter)
 
 
+@router.patch("/encounters/{encounter_id}", response_model=EncounterResponse)
+async def update_encounter(
+    encounter_id: uuid.UUID,
+    data: EncounterUpdate,
+    current_user: User = Depends(require_permissions("encounters:write")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Actualizar un encuentro en progreso."""
+    service = EncounterService(db)
+    try:
+        encounter = await service.update_encounter(
+            encounter_id, data, updated_by=current_user.id
+        )
+        if not encounter:
+            raise HTTPException(status_code=404, detail="Encuentro no encontrado")
+        encounter = await service.get_encounter(encounter.id)
+        return EncounterResponse.model_validate(encounter)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/encounters/{encounter_id}/cancel", response_model=EncounterResponse)
+async def cancel_encounter(
+    encounter_id: uuid.UUID,
+    current_user: User = Depends(require_permissions("encounters:write")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Cancelar un encuentro clinico."""
+    service = EncounterService(db)
+    try:
+        encounter = await service.cancel_encounter(
+            encounter_id, updated_by=current_user.id
+        )
+        if not encounter:
+            raise HTTPException(status_code=404, detail="Encuentro no encontrado")
+        return EncounterResponse.model_validate(encounter)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 # =============================================
 # Notas Clinicas
 # =============================================
@@ -162,6 +209,32 @@ async def sign_clinical_note(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.get("/notes/{note_id}", response_model=ClinicalNoteResponse)
+async def get_clinical_note(
+    note_id: uuid.UUID,
+    current_user: User = Depends(require_permissions("encounters:read")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Obtener una nota clinica por ID."""
+    service = ClinicalNoteService(db)
+    note = await service.get_note(note_id)
+    if not note:
+        raise HTTPException(status_code=404, detail="Nota no encontrada")
+    return ClinicalNoteResponse.model_validate(note)
+
+
+@router.get("/encounters/{encounter_id}/notes", response_model=list[ClinicalNoteResponse])
+async def get_encounter_notes(
+    encounter_id: uuid.UUID,
+    current_user: User = Depends(require_permissions("encounters:read")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Listar notas de un encuentro."""
+    service = ClinicalNoteService(db)
+    notes = await service.get_encounter_notes(encounter_id)
+    return [ClinicalNoteResponse.model_validate(n) for n in notes]
+
+
 # =============================================
 # Diagnosticos
 # =============================================
@@ -189,6 +262,23 @@ async def get_patient_diagnoses(
     service = DiagnosisService(db)
     diagnoses = await service.get_patient_diagnoses(patient_id, status=diagnosis_status)
     return [DiagnosisResponse.model_validate(d) for d in diagnoses]
+
+
+@router.patch("/diagnoses/{diagnosis_id}", response_model=DiagnosisResponse)
+async def update_diagnosis(
+    diagnosis_id: uuid.UUID,
+    data: DiagnosisUpdate,
+    current_user: User = Depends(require_permissions("encounters:write")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Actualizar un diagnostico (ej: marcar como resuelto)."""
+    service = DiagnosisService(db)
+    diagnosis = await service.update_diagnosis(
+        diagnosis_id, data, updated_by=current_user.id
+    )
+    if not diagnosis:
+        raise HTTPException(status_code=404, detail="Diagnostico no encontrado")
+    return DiagnosisResponse.model_validate(diagnosis)
 
 
 # =============================================
@@ -248,6 +338,23 @@ async def get_patient_allergies(
     return [AllergyResponse.model_validate(a) for a in allergies]
 
 
+@router.patch("/allergies/{allergy_id}", response_model=AllergyResponse)
+async def update_allergy(
+    allergy_id: uuid.UUID,
+    data: AllergyUpdate,
+    current_user: User = Depends(require_permissions("encounters:write")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Actualizar una alergia."""
+    service = AllergyService(db)
+    allergy = await service.update_allergy(
+        allergy_id, data, updated_by=current_user.id
+    )
+    if not allergy:
+        raise HTTPException(status_code=404, detail="Alergia no encontrada")
+    return AllergyResponse.model_validate(allergy)
+
+
 # =============================================
 # Ordenes Medicas
 # =============================================
@@ -279,3 +386,150 @@ async def update_order_status(
     if not order:
         raise HTTPException(status_code=404, detail="Orden no encontrada")
     return MedicalOrderResponse.model_validate(order)
+
+
+@router.get("/orders/{order_id}", response_model=MedicalOrderResponse)
+async def get_medical_order(
+    order_id: uuid.UUID,
+    current_user: User = Depends(require_permissions("orders:read")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Obtener una orden medica por ID."""
+    service = MedicalOrderService(db)
+    order = await service.get_order(order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+    return MedicalOrderResponse.model_validate(order)
+
+
+@router.get("/encounters/{encounter_id}/orders", response_model=list[MedicalOrderResponse])
+async def get_encounter_orders(
+    encounter_id: uuid.UUID,
+    current_user: User = Depends(require_permissions("orders:read")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Listar ordenes de un encuentro."""
+    service = MedicalOrderService(db)
+    orders = await service.get_encounter_orders(encounter_id)
+    return [MedicalOrderResponse.model_validate(o) for o in orders]
+
+
+# =============================================
+# Lista de Problemas
+# =============================================
+
+@router.post("/problem-list", response_model=ProblemListResponse, status_code=status.HTTP_201_CREATED)
+async def add_problem(
+    data: ProblemListCreate,
+    current_user: User = Depends(require_permissions("encounters:write")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Agregar un problema a la lista del paciente."""
+    service = ProblemListService(db)
+    problem = await service.add_problem(data, created_by=current_user.id)
+    return ProblemListResponse.model_validate(problem)
+
+
+@router.get("/patients/{patient_id}/problem-list", response_model=list[ProblemListResponse])
+async def get_patient_problems(
+    patient_id: uuid.UUID,
+    problem_status: str | None = Query(default=None, alias="status"),
+    current_user: User = Depends(require_permissions("encounters:read")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Obtener la lista de problemas activos de un paciente."""
+    service = ProblemListService(db)
+    problems = await service.get_patient_problems(patient_id, status=problem_status)
+    return [ProblemListResponse.model_validate(p) for p in problems]
+
+
+@router.patch("/problem-list/{problem_id}", response_model=ProblemListResponse)
+async def update_problem(
+    problem_id: uuid.UUID,
+    data: ProblemListUpdate,
+    current_user: User = Depends(require_permissions("encounters:write")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Actualizar un problema (ej: marcar como resuelto)."""
+    service = ProblemListService(db)
+    problem = await service.update_problem(
+        problem_id, data, updated_by=current_user.id
+    )
+    if not problem:
+        raise HTTPException(status_code=404, detail="Problema no encontrado")
+    return ProblemListResponse.model_validate(problem)
+
+
+@router.delete("/problem-list/{problem_id}", response_model=MessageResponse)
+async def remove_problem(
+    problem_id: uuid.UUID,
+    current_user: User = Depends(require_permissions("encounters:write")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Eliminar un problema de la lista."""
+    service = ProblemListService(db)
+    removed = await service.remove_problem(problem_id, updated_by=current_user.id)
+    if not removed:
+        raise HTTPException(status_code=404, detail="Problema no encontrado")
+    return MessageResponse(message="Problema eliminado de la lista")
+
+
+# =============================================
+# Plantillas Clinicas
+# =============================================
+
+@router.post("/templates", response_model=ClinicalTemplateResponse, status_code=status.HTTP_201_CREATED)
+async def create_template(
+    data: ClinicalTemplateCreate,
+    current_user: User = Depends(require_roles("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Crear una plantilla clinica (solo admin)."""
+    service = ClinicalTemplateService(db)
+    template = await service.create_template(
+        data.model_dump(), created_by=current_user.id
+    )
+    return ClinicalTemplateResponse.model_validate(template)
+
+
+@router.get("/templates", response_model=list[ClinicalTemplateResponse])
+async def list_templates(
+    specialty_code: str | None = None,
+    template_type: str | None = None,
+    current_user: User = Depends(require_permissions("encounters:read")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Listar plantillas clinicas con filtros opcionales."""
+    service = ClinicalTemplateService(db)
+    templates = await service.list_templates(
+        specialty_code=specialty_code, template_type=template_type
+    )
+    return [ClinicalTemplateResponse.model_validate(t) for t in templates]
+
+
+@router.get("/templates/{template_id}", response_model=ClinicalTemplateResponse)
+async def get_template(
+    template_id: uuid.UUID,
+    current_user: User = Depends(require_permissions("encounters:read")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Obtener una plantilla clinica por ID."""
+    service = ClinicalTemplateService(db)
+    template = await service.get_template(template_id)
+    if not template:
+        raise HTTPException(status_code=404, detail="Plantilla no encontrada")
+    return ClinicalTemplateResponse.model_validate(template)
+
+
+@router.delete("/templates/{template_id}", response_model=MessageResponse)
+async def delete_template(
+    template_id: uuid.UUID,
+    current_user: User = Depends(require_roles("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Eliminar una plantilla clinica (solo admin)."""
+    service = ClinicalTemplateService(db)
+    deleted = await service.delete_template(template_id, updated_by=current_user.id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Plantilla no encontrada")
+    return MessageResponse(message="Plantilla eliminada")
