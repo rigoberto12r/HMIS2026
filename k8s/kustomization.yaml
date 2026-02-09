@@ -1,0 +1,46 @@
+# Kustomization file for deploying HMIS to Kubernetes
+#
+# Usage:
+#   kubectl apply -k k8s/
+#
+# Or with specific overlays:
+#   kubectl apply -k k8s/overlays/production/
+#
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: hmis-prod
+
+resources:
+  # Namespace
+  - namespace.yaml
+
+  # ConfigMaps & Secrets
+  - configmap.yaml
+  # Note: secrets.yaml is NOT included (generated separately)
+
+  # Database & Cache
+  - postgres-statefulset.yaml
+  - redis-deployment.yaml
+
+  # Application
+  - backend-deployment.yaml
+  - backend-service.yaml
+  - backend-hpa.yaml
+  - frontend-deployment.yaml
+  - frontend-service.yaml
+
+  # Ingress
+  - ingress.yaml
+
+# Common labels added to all resources
+commonLabels:
+  app.kubernetes.io/name: hmis-saas
+  app.kubernetes.io/version: "1.0.0"
+  app.kubernetes.io/managed-by: kustomize
+
+# Common annotations
+commonAnnotations:
+  hmis.io/deployed-by: "claude-sonnet-4.5"
+  hmis.io/documentation: "https://github.com/rigoberto12r/HMIS2026"

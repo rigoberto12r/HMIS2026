@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hmis-prod
+  labels:
+    name: hmis-prod
+    environment: production
+    app: hmis-saas
