@@ -1,18 +1,20 @@
-import { Suspense } from 'react';
+'use client';
+
+import { Suspense, useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { UserPlus, AlertTriangle } from 'lucide-react';
 import { PatientStats, PatientTable } from '@/components/patients';
 import { PatientFiltersClient } from '@/components/patients/PatientFiltersClient';
 import { CreatePatientButton } from '@/components/patients/CreatePatientButton';
+import { useSearchParams, useRouter } from 'next/navigation';
 
 /**
- * Patients Page - Server Component
+ * Patients Page - Client Component
  *
- * Fetches patient data server-side for improved performance:
- * - First Contentful Paint (FCP): 1.2s → 0.4s (-67%)
- * - SEO-friendly with pre-rendered HTML
+ * Interactive patient management with URL state:
  * - URL state management for bookmarkable filters
+ * - Client-side data fetching with React Query (when available)
  *
  * Search params:
  * - page: number (default: 1)
@@ -20,67 +22,62 @@ import { CreatePatientButton } from '@/components/patients/CreatePatientButton';
  * - gender: "M" | "F" | ""
  */
 
-interface PatientsPageProps {
-  searchParams: {
-    page?: string;
-    search?: string;
-    gender?: string;
-  };
-}
+export default function PatientsPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
-// Fetch patients server-side
-async function fetchPatients(params: {
-  page: number;
-  page_size: number;
-  query?: string;
-  gender?: string;
-}) {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
-
-  const queryParams = new URLSearchParams({
-    page: params.page.toString(),
-    page_size: params.page_size.toString(),
-  });
-
-  if (params.query) queryParams.append('query', params.query);
-  if (params.gender) queryParams.append('gender', params.gender);
-
-  const response = await fetch(`${apiUrl}/patients/search?${queryParams.toString()}`, {
-    cache: 'no-store', // Disable caching for fresh data
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch patients: ${response.statusText}`);
-  }
-
-  return response.json();
-}
-
-export default async function PatientsPage({ searchParams }: PatientsPageProps) {
-  // Parse search params
-  const page = Number(searchParams.page) || 1;
-  const search = searchParams.search || '';
-  const genderFilter = searchParams.gender || '';
+  const page = Number(searchParams.get('page')) || 1;
+  const search = searchParams.get('search') || '';
+  const genderFilter = searchParams.get('gender') || '';
   const pageSize = 10;
 
-  // Fetch data server-side
-  let data;
-  let error;
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
 
-  try {
-    data = await fetchPatients({
-      page,
-      page_size: pageSize,
-      query: search || undefined,
-      gender: genderFilter || undefined,
-    });
-  } catch (err) {
-    error = err;
-    console.error('Error fetching patients:', err);
-  }
+  // Fetch patients
+  useEffect(() => {
+    const fetchPatients = async () => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+        const queryParams = new URLSearchParams({
+          page: page.toString(),
+          page_size: pageSize.toString(),
+        });
+
+        if (search) queryParams.append('query', search);
+        if (genderFilter) queryParams.append('gender', genderFilter);
+
+        const response = await fetch(`${apiUrl}/patients/search?${queryParams.toString()}`, {
+          cache: 'no-store',
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch patients: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        setData(result);
+      } catch (err) {
+        setError(err as Error);
+        console.error('Error fetching patients:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPatients();
+  }, [page, search, genderFilter, pageSize]);
+
+  const handlePageChange = (newPage: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('page', newPage.toString());
+    router.push(`/patients?${params.toString()}`);
+  };
 
   return (
     <div className="space-y-6">
@@ -121,17 +118,15 @@ export default async function PatientsPage({ searchParams }: PatientsPageProps) 
         </div>
       )}
 
-      {/* Table - Server Component with client-side pagination */}
+      {/* Table - Client-side pagination */}
       <Card>
         <PatientTable
           patients={data?.items || []}
-          loading={false}
+          loading={loading}
           page={page}
           pageSize={pageSize}
           total={data?.total || 0}
-          onPageChange={(newPage) => {
-            // This will be handled by client component wrapper
-          }}
+          onPageChange={handlePageChange}
         />
       </Card>
     </div>
