@@ -18,19 +18,33 @@ from app.core.logging import setup_logging, get_logger
 from app.core.middleware import TenantMiddleware, AuditMiddleware
 from app.core.metrics import PrometheusMiddleware
 from app.core.rate_limit import RateLimitMiddleware
-from app.core.tracing import setup_tracing
 from app.shared.exceptions import DomainException
+
+# Optional: OpenTelemetry distributed tracing (requires opentelemetry packages)
+try:
+    from app.core.tracing import setup_tracing
+    TRACING_AVAILABLE = True
+except ImportError:
+    TRACING_AVAILABLE = False
+    setup_tracing = None
 from app.modules.auth.routes import router as auth_router
 from app.modules.patients.routes import router as patients_router
 from app.modules.appointments.routes import router as appointments_router
 from app.modules.emr.routes import router as emr_router
 from app.modules.billing.routes import router as billing_router
-from app.modules.billing.payment_routes import router as payment_router
 from app.modules.pharmacy.routes import router as pharmacy_router
 from app.modules.admin.routes import router as admin_router
 from app.modules.portal.routes import router as portal_router
 from app.modules.reports.routes import router as reports_router
 from app.modules.reports.cqrs_routes import router as cqrs_reports_router
+
+# Optional: Stripe payment routes (if stripe package is installed)
+try:
+    from app.modules.billing.payment_routes import router as payment_router
+    STRIPE_AVAILABLE = True
+except ImportError:
+    payment_router = None
+    STRIPE_AVAILABLE = False
 
 logger = get_logger("hmis.app")
 
@@ -109,7 +123,10 @@ def create_app() -> FastAPI:
 
     # ------ OpenTelemetry Tracing ------
     # Configure distributed tracing (instruments FastAPI, SQLAlchemy, Redis)
-    setup_tracing(app)
+    if TRACING_AVAILABLE:
+        setup_tracing(app)
+    else:
+        logger.info("OpenTelemetry tracing not available (dependencies not installed)")
 
     # ------ Exception Handlers ------
 
@@ -165,7 +182,10 @@ def create_app() -> FastAPI:
     app.include_router(appointments_router, prefix="/api/v1/appointments", tags=["Citas"])
     app.include_router(emr_router, prefix="/api/v1/emr", tags=["Historia Clinica Electronica"])
     app.include_router(billing_router, prefix="/api/v1/billing", tags=["Facturacion y Seguros"])
-    app.include_router(payment_router, prefix="/api/v1/payments", tags=["Stripe Payments"])
+    if STRIPE_AVAILABLE:
+        app.include_router(payment_router, prefix="/api/v1/payments", tags=["Stripe Payments"])
+    else:
+        logger.info("Stripe payment routes not available (stripe package not installed)")
     app.include_router(pharmacy_router, prefix="/api/v1/pharmacy", tags=["Farmacia e Inventario"])
     app.include_router(admin_router, prefix="/api/v1/admin", tags=["Administracion"])
     app.include_router(portal_router, prefix="/api/v1/portal", tags=["Patient Portal"])

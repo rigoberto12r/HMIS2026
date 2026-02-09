@@ -15,7 +15,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.cache import redis_client
-from app.shared.events import DomainEvent, EVENT_TYPES, subscribe
+from app.shared.events import DomainEvent, subscribe, _event_handlers
 
 logger = logging.getLogger(__name__)
 
@@ -301,15 +301,21 @@ def register_projections() -> None:
 
     Call this during application startup.
     """
+    # Helper function to register handler
+    def register(event_type: str, handler):
+        if event_type not in _event_handlers:
+            _event_handlers[event_type] = []
+        _event_handlers[event_type].append(handler)
+
     # AR Aging projections
-    subscribe(EVENT_TYPES["INVOICE_GENERATED"], ARAgingProjection.update_on_invoice_generated)
-    subscribe(EVENT_TYPES["PAYMENT_RECEIVED"], ARAgingProjection.update_on_payment_received)
+    register("invoice.generated", ARAgingProjection.update_on_invoice_generated)
+    register("payment.received", ARAgingProjection.update_on_payment_received)
 
     # Diagnosis trends projections
-    subscribe(EVENT_TYPES["DIAGNOSIS_ADDED"], DiagnosisTrendsProjection.update_on_diagnosis_added)
+    register("diagnosis.added", DiagnosisTrendsProjection.update_on_diagnosis_added)
 
     # Revenue projections
-    subscribe(EVENT_TYPES["INVOICE_GENERATED"], RevenueProjection.update_on_invoice_generated)
-    subscribe(EVENT_TYPES["PAYMENT_RECEIVED"], RevenueProjection.update_on_payment_received)
+    register("invoice.generated", RevenueProjection.update_on_invoice_generated)
+    register("payment.received", RevenueProjection.update_on_payment_received)
 
     logger.info("CQRS projections registered successfully")

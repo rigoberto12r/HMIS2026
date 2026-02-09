@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_read_db, get_db, current_tenant
-from app.core.middleware import get_current_user
+from app.modules.auth.dependencies import get_current_user
 from app.cqrs.queries import (
     BillingQueryHandler,
     ClinicalQueryHandler,

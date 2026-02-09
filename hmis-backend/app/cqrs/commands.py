@@ -16,8 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.billing.models import Invoice, Payment, ChargeItem
 from app.modules.emr.models import Encounter, Diagnosis, ClinicalNote
 from app.modules.patients.models import Patient, PatientInsurance
-from app.modules.pharmacy.models import Prescription, DispensationRecord
-from app.shared.events import publish, DomainEvent, EVENT_TYPES
+from app.modules.pharmacy.models import Prescription, Dispensation
+from app.shared.events import publish, DomainEvent
 
 
 # ─── Command Models ──────────────────────────────────────────────
@@ -140,7 +140,7 @@ class InvoiceCommandHandler:
         # Publish event for projections
         await publish(
             DomainEvent(
-                event_type=EVENT_TYPES["INVOICE_GENERATED"],
+                event_type="invoice.generated",
                 aggregate_type="Invoice",
                 aggregate_id=str(invoice.id),
                 tenant_id=command.tenant_id,
@@ -182,7 +182,7 @@ class InvoiceCommandHandler:
         # Publish event
         await publish(
             DomainEvent(
-                event_type=EVENT_TYPES["PAYMENT_RECEIVED"],
+                event_type="payment.received",
                 aggregate_type="Payment",
                 aggregate_id=str(payment.id),
                 tenant_id=command.tenant_id,
@@ -227,7 +227,7 @@ class EncounterCommandHandler:
         # Publish event
         await publish(
             DomainEvent(
-                event_type=EVENT_TYPES["ENCOUNTER_CREATED"],
+                event_type="encounter.created",
                 aggregate_type="Encounter",
                 aggregate_id=str(encounter.id),
                 tenant_id=command.tenant_id,
@@ -263,7 +263,7 @@ class EncounterCommandHandler:
         # Publish event
         await publish(
             DomainEvent(
-                event_type=EVENT_TYPES["DIAGNOSIS_ADDED"],
+                event_type="diagnosis.added",
                 aggregate_type="Diagnosis",
                 aggregate_id=str(diagnosis.id),
                 tenant_id=command.tenant_id,
@@ -288,11 +288,11 @@ class PharmacyCommandHandler:
 
     async def dispense_medication(
         self, command: DispenseMedicationCommand
-    ) -> DispensationRecord:
+    ) -> Dispensation:
         """
         Dispense medication from a prescription.
         """
-        dispensation = DispensationRecord(
+        dispensation = Dispensation(
             tenant_id=command.tenant_id,
             prescription_id=command.prescription_id,
             quantity_dispensed=command.quantity_dispensed,
@@ -310,8 +310,8 @@ class PharmacyCommandHandler:
         # Publish event
         await publish(
             DomainEvent(
-                event_type=EVENT_TYPES.get("PRESCRIPTION_DISPENSED", "prescription.dispensed"),
-                aggregate_type="DispensationRecord",
+                event_type="prescription.dispensed",
+                aggregate_type="Dispensation",
                 aggregate_id=str(dispensation.id),
                 tenant_id=command.tenant_id,
                 payload={
