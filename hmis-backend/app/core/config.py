@@ -66,6 +66,10 @@ class Settings(BaseSettings):
     OTLP_INSECURE: bool = True  # Use False with TLS in production
     TRACING_EXCLUDED_URLS: str = "/health,/health/live,/health/ready,/metrics"  # Skip health checks
 
+    # --- AWS Secrets Manager ---
+    AWS_REGION: str = "us-east-1"  # AWS region for Secrets Manager
+    USE_SECRETS_MANAGER: bool = False  # Set to True in production to use AWS Secrets Manager
+
     # --- Paginacion ---
     DEFAULT_PAGE_SIZE: int = 20
     MAX_PAGE_SIZE: int = 100
@@ -124,6 +128,59 @@ class Settings(BaseSettings):
             except Exception:
                 continue
         return hosts
+
+    # --- AWS Secrets Manager Integration ---
+
+    def get_database_url_from_secrets(self) -> str:
+        """
+        Get database URL from AWS Secrets Manager in production.
+        Falls back to environment variable in dev/test.
+        """
+        if self.USE_SECRETS_MANAGER and self.ENVIRONMENT in ("staging", "production"):
+            from app.core.secrets import get_secrets_manager
+
+            secrets = get_secrets_manager()
+            secret_url = secrets.get_database_url()
+
+            if secret_url:
+                return secret_url
+
+        # Fallback to environment variable
+        return self.DATABASE_URL
+
+    def get_jwt_secret_from_secrets(self) -> str:
+        """
+        Get JWT secret from AWS Secrets Manager in production.
+        Falls back to environment variable in dev/test.
+        """
+        if self.USE_SECRETS_MANAGER and self.ENVIRONMENT in ("staging", "production"):
+            from app.core.secrets import get_secrets_manager
+
+            secrets = get_secrets_manager()
+            secret_key = secrets.get_jwt_secret()
+
+            if secret_key:
+                return secret_key
+
+        # Fallback to environment variable
+        return self.JWT_SECRET_KEY
+
+    def get_redis_url_from_secrets(self) -> str:
+        """
+        Get Redis URL from AWS Secrets Manager in production.
+        Falls back to environment variable in dev/test.
+        """
+        if self.USE_SECRETS_MANAGER and self.ENVIRONMENT in ("staging", "production"):
+            from app.core.secrets import get_secrets_manager
+
+            secrets = get_secrets_manager()
+            secret_url = secrets.get_redis_url()
+
+            if secret_url:
+                return secret_url
+
+        # Fallback to environment variable
+        return self.REDIS_URL
 
 
 settings = Settings()

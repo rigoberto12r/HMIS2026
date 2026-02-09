@@ -1,21 +1,22 @@
 # ===========================================
-# HMIS SaaS - Docker Compose para Produccion
+# HMIS SaaS - Production Docker Compose with Blue-Green Deployment
 # ===========================================
-# Incluye Nginx como reverse proxy con TLS
+# Implements zero-downtime deployments with blue/green slots
 #
-# Uso:
-#   cp .env.example .env  (ajustar valores de produccion)
-#   docker compose -f docker-compose.prod.yml up -d
+# Usage:
+#   1. Initial setup: docker compose -f docker-compose.prod.yml up -d
+#   2. Deploy new version: ./scripts/blue-green-deploy.sh
+#   3. Rollback: ./scripts/blue-green-deploy.sh --rollback
 #
-# Pre-requisitos:
-#   - Certificados TLS en ./certs/fullchain.pem y ./certs/privkey.pem
-#   - O usar Let's Encrypt con certbot (ver docs)
-
-version: "3.9"
+# Architecture:
+#   - 2 backend instances (blue/green) for zero-downtime deployments
+#   - Nginx routes traffic to active slot via weighted upstream
+#   - Health checks ensure new version is healthy before switching
+#
 
 services:
   # ===========================================
-  # Nginx - Reverse Proxy con TLS
+  # Nginx - Load Balancer with Traffic Switching
   # ===========================================
   nginx:
     image: nginx:1.25-alpine
@@ -24,43 +25,43 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./hmis-infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./hmis-infra/nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./certs:/etc/nginx/certs:ro
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
       - nginx_logs:/var/log/nginx
+    networks:
+      - hmis-network
     depends_on:
-      backend:
+      backend-blue:
         condition: service_healthy
-      frontend:
+      backend-green:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost/health || exit 1"]
-      interval: 15s
+      test: ["CMD-SHELL", "wget --spider http://localhost/health || exit 1"]
+      interval: 10s
       timeout: 5s
       retries: 3
     restart: unless-stopped
 
   # ===========================================
-  # PostgreSQL - Base de datos principal
+  # PostgreSQL - Shared Database
   # ===========================================
   postgres:
     image: postgres:16-alpine
     container_name: hmis-postgres
-    env_file:
-      - .env
     environment:
       POSTGRES_DB: hmis
-      POSTGRES_USER: hmis_admin
+      POSTGRES_USER: ${POSTGRES_USER:-hmis_admin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=es_DO.UTF-8"
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./hmis-backend/docker/init-db.sql:/docker-entrypoint-initdb.d/init.sql
       - postgres_backups:/backups
+    networks:
+      - hmis-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U hmis_admin -d hmis"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hmis_admin} -d hmis"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -73,7 +74,7 @@ services:
           memory: 512M
 
   # ===========================================
-  # Redis - Cache y mensajeria
+  # Redis - Shared Cache
   # ===========================================
   redis:
     image: redis:7-alpine
@@ -88,6 +89,8 @@ services:
       - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
+    networks:
+      - hmis-network
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-hmis_redis_2026}", "ping"]
       interval: 10s
@@ -96,40 +99,66 @@ services:
     restart: unless-stopped
 
   # ===========================================
-  # Backend - FastAPI
+  # Jaeger - Distributed Tracing
   # ===========================================
-  backend:
+  jaeger:
+    image: jaegertracing/all-in-one:1.53
+    container_name: hmis-jaeger
+    environment:
+      COLLECTOR_OTLP_ENABLED: true
+    ports:
+      - "127.0.0.1:16686:16686"  # UI
+    networks:
+      - hmis-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider http://localhost:16686/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ===========================================
+  # Backend BLUE - Active Deployment Slot
+  # ===========================================
+  backend-blue:
     build:
       context: ./hmis-backend
       dockerfile: docker/Dockerfile
-    container_name: hmis-backend
-    env_file:
-      - .env
+    container_name: hmis-backend-blue
     environment:
-      DATABASE_URL: postgresql+asyncpg://hmis_admin:${POSTGRES_PASSWORD}@postgres:5432/hmis
+      DEPLOYMENT_SLOT: blue
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-hmis_admin}:${POSTGRES_PASSWORD}@postgres:5432/hmis
       REDIS_URL: redis://:${REDIS_PASSWORD:-hmis_redis_2026}@redis:6379/0
-      MEILISEARCH_URL: http://meilisearch:7700
-      MEILISEARCH_KEY: ${MEILI_MASTER_KEY}
       SECRET_KEY: ${SECRET_KEY}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY}
-      ENVIRONMENT: production
+      OTLP_ENDPOINT: http://jaeger:4317
+      OTLP_INSECURE: false
+      USE_SECRETS_MANAGER: ${USE_SECRETS_MANAGER:-false}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
       CORS_ORIGINS: ${CORS_ORIGINS}
       SENTRY_DSN: ${SENTRY_DSN:-}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_LEVEL: INFO
       DEBUG: "false"
     expose:
       - "8000"
+    volumes:
+      - backend_blue_logs:/app/logs
+    networks:
+      - hmis-network
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      jaeger:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health/live || exit 1"]
-      interval: 15s
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health/ready || exit 1"]
+      interval: 10s
       timeout: 5s
       retries: 3
-      start_period: 30s
+      start_period: 40s
     restart: unless-stopped
     deploy:
       resources:
@@ -141,23 +170,73 @@ services:
           cpus: "0.25"
 
   # ===========================================
-  # Frontend - Next.js (produccion)
+  # Backend GREEN - Standby Deployment Slot
+  # ===========================================
+  backend-green:
+    build:
+      context: ./hmis-backend
+      dockerfile: docker/Dockerfile
+    container_name: hmis-backend-green
+    environment:
+      DEPLOYMENT_SLOT: green
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-hmis_admin}:${POSTGRES_PASSWORD}@postgres:5432/hmis
+      REDIS_URL: redis://:${REDIS_PASSWORD:-hmis_redis_2026}@redis:6379/0
+      SECRET_KEY: ${SECRET_KEY}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      OTLP_ENDPOINT: http://jaeger:4317
+      OTLP_INSECURE: false
+      USE_SECRETS_MANAGER: ${USE_SECRETS_MANAGER:-false}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      LOG_LEVEL: INFO
+      DEBUG: "false"
+    expose:
+      - "8000"
+    volumes:
+      - backend_green_logs:/app/logs
+    networks:
+      - hmis-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      jaeger:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+        reservations:
+          memory: 256M
+          cpus: "0.25"
+
+  # ===========================================
+  # Frontend - Next.js Application
   # ===========================================
   frontend:
     build:
       context: ./hmis-frontend
       dockerfile: Dockerfile
     container_name: hmis-frontend
-    env_file:
-      - .env
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
       NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-HMIS SaaS}
       NODE_ENV: production
     expose:
       - "3000"
-    depends_on:
-      - backend
+    networks:
+      - hmis-network
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:3000/ || exit 1"]
       interval: 30s
@@ -167,7 +246,7 @@ services:
     restart: unless-stopped
 
   # ===========================================
-  # Meilisearch - Busqueda
+  # Meilisearch - Search Engine
   # ===========================================
   meilisearch:
     image: getmeili/meilisearch:v1.6
@@ -180,10 +259,12 @@ services:
       - "7700"
     volumes:
       - meilisearch_data:/meili_data
+    networks:
+      - hmis-network
     restart: unless-stopped
 
   # ===========================================
-  # MinIO - Almacenamiento S3
+  # MinIO - Object Storage (S3-compatible)
   # ===========================================
   minio:
     image: minio/minio:latest
@@ -197,6 +278,8 @@ services:
       - "127.0.0.1:9001:9001"
     volumes:
       - minio_data:/data
+    networks:
+      - hmis-network
     command: server /data --console-address ":9001"
     restart: unless-stopped
 
@@ -204,6 +287,12 @@ volumes:
   postgres_data:
   postgres_backups:
   redis_data:
+  backend_blue_logs:
+  backend_green_logs:
+  nginx_logs:
   meilisearch_data:
   minio_data:
-  nginx_logs:
+
+networks:
+  hmis-network:
+    driver: bridge
