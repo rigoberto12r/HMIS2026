@@ -18,6 +18,7 @@ from app.core.logging import setup_logging, get_logger
 from app.core.middleware import TenantMiddleware, AuditMiddleware
 from app.core.metrics import PrometheusMiddleware
 from app.core.rate_limit import RateLimitMiddleware
+from app.core.tracing import setup_tracing
 from app.shared.exceptions import DomainException
 from app.modules.auth.routes import router as auth_router
 from app.modules.patients.routes import router as patients_router
@@ -99,6 +100,10 @@ def create_app() -> FastAPI:
         openapi_url="/api/openapi.json",
         lifespan=lifespan,
     )
+
+    # ------ OpenTelemetry Tracing ------
+    # Configure distributed tracing (instruments FastAPI, SQLAlchemy, Redis)
+    setup_tracing(app)
 
     # ------ Exception Handlers ------
 

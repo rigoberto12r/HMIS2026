@@ -61,6 +61,11 @@ class Settings(BaseSettings):
     SENTRY_DSN: str = ""  # Dejar vacio para desactivar Sentry
     LOG_LEVEL: str = "INFO"
 
+    # --- Distributed Tracing (OpenTelemetry) ---
+    OTLP_ENDPOINT: str = ""  # e.g., "http://localhost:4317" for Jaeger
+    OTLP_INSECURE: bool = True  # Use False with TLS in production
+    TRACING_EXCLUDED_URLS: str = "/health,/health/live,/health/ready,/metrics"  # Skip health checks
+
     # --- Paginacion ---
     DEFAULT_PAGE_SIZE: int = 20
     MAX_PAGE_SIZE: int = 100

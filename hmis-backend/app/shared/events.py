@@ -3,13 +3,17 @@ Sistema de eventos para comunicacion entre modulos (Event-Driven Architecture).
 Usa Redis Streams para desacoplar modulos manteniendo trazabilidad.
 """
 
+import asyncio
 import json
+import logging
 import uuid
 from datetime import datetime, timezone
 from dataclasses import dataclass, field, asdict
 from typing import Any, Callable, Awaitable
 
 from app.core.cache import redis_client
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -41,9 +45,10 @@ def subscribe(event_type: str):
 
 async def publish(event: DomainEvent) -> None:
     """
-    Publica un evento de dominio.
+    Publica un evento de dominio con DLQ y retry logic.
     1. Lo persiste en Redis Stream para durabilidad
-    2. Ejecuta handlers locales registrados
+    2. Ejecuta handlers locales con reintentos automáticos
+    3. Si falla después de 3 reintentos, envía a Dead Letter Queue
     """
     # Persistir en Redis Stream
     stream_key = f"events:{event.aggregate_type}"
@@ -53,14 +58,91 @@ async def publish(event: DomainEvent) -> None:
         maxlen=10000,
     )
 
-    # Ejecutar handlers locales
+    # Ejecutar handlers locales con retry logic
     handlers = _event_handlers.get(event.event_type, [])
     for handler in handlers:
-        try:
-            await handler(event)
-        except Exception as e:
-            # TODO: Log error y enviar a dead letter queue
-            print(f"Error en handler de evento {event.event_type}: {e}")
+        max_retries = 3
+        retry_count = 0
+
+        while retry_count < max_retries:
+            try:
+                await handler(event)
+                break  # Handler exitoso, salir del loop
+            except Exception as e:
+                retry_count += 1
+                logger.error(
+                    "Error en handler de evento",
+                    extra={
+                        "event_type": event.event_type,
+                        "event_id": event.event_id,
+                        "handler": handler.__name__,
+                        "retry_attempt": retry_count,
+                        "error": str(e),
+                        "aggregate_type": event.aggregate_type,
+                        "aggregate_id": event.aggregate_id,
+                    },
+                    exc_info=True,
+                )
+
+                if retry_count >= max_retries:
+                    # Enviar a Dead Letter Queue después de 3 intentos
+                    await _send_to_dlq(event, handler.__name__, str(e))
+                    logger.critical(
+                        "Evento enviado a DLQ después de 3 intentos fallidos",
+                        extra={
+                            "event_type": event.event_type,
+                            "event_id": event.event_id,
+                            "handler": handler.__name__,
+                            "error": str(e),
+                        },
+                    )
+                else:
+                    # Exponential backoff: 2^retry_count segundos
+                    backoff_seconds = 2 ** retry_count
+                    logger.warning(
+                        f"Reintentando handler en {backoff_seconds}s (intento {retry_count}/{max_retries})",
+                        extra={
+                            "event_type": event.event_type,
+                            "event_id": event.event_id,
+                            "handler": handler.__name__,
+                            "backoff_seconds": backoff_seconds,
+                        },
+                    )
+                    await asyncio.sleep(backoff_seconds)
+
+
+async def _send_to_dlq(event: DomainEvent, handler_name: str, error_message: str) -> None:
+    """
+    Envía un evento fallido al Dead Letter Queue en Redis.
+    DLQ usa un Redis Stream separado para análisis posterior.
+    """
+    dlq_entry = {
+        "event_data": json.dumps(asdict(event)),
+        "handler": handler_name,
+        "error": error_message,
+        "failed_at": datetime.now(timezone.utc).isoformat(),
+        "event_type": event.event_type,
+        "event_id": event.event_id,
+        "aggregate_type": event.aggregate_type,
+        "aggregate_id": event.aggregate_id,
+    }
+
+    try:
+        await redis_client.xadd(
+            "events:dlq",
+            dlq_entry,
+            maxlen=5000,  # Mantener últimos 5000 eventos fallidos
+        )
+    except Exception as dlq_error:
+        logger.critical(
+            "CRÍTICO: No se pudo enviar evento a DLQ",
+            extra={
+                "event_id": event.event_id,
+                "dlq_error": str(dlq_error),
+                "original_error": error_message,
+            },
+            exc_info=True,
+        )
 
 
 # =============================================
