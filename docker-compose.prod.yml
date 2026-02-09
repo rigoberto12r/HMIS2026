@@ -43,7 +43,7 @@ services:
     restart: unless-stopped
 
   # ===========================================
-  # PostgreSQL - Shared Database
+  # PostgreSQL - Primary Database (WRITE)
   # ===========================================
   postgres:
     image: postgres:16-alpine
@@ -53,6 +53,9 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-hmis_admin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=es_DO.UTF-8"
+      # Enable WAL archiving for streaming replication
+      POSTGRES_MAX_WAL_SENDERS: 3
+      POSTGRES_WAL_KEEP_SIZE: 1024
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
@@ -60,6 +63,40 @@ services:
       - postgres_backups:/backups
     networks:
       - hmis-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hmis_admin} -d hmis"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
+
+  # ===========================================
+  # PostgreSQL Read Replica (READ - CQRS)
+  # ===========================================
+  postgres-read:
+    image: postgres:16-alpine
+    container_name: hmis-postgres-read
+    environment:
+      POSTGRES_DB: hmis
+      POSTGRES_USER: ${POSTGRES_USER:-hmis_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # Enable hot standby (read-only queries on replica)
+      POSTGRES_PRIMARY_CONNINFO: "host=postgres port=5432 user=${POSTGRES_USER:-hmis_admin} password=${POSTGRES_PASSWORD}"
+    expose:
+      - "5432"
+    volumes:
+      - postgres_read_data:/var/lib/postgresql/data
+    networks:
+      - hmis-network
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hmis_admin} -d hmis"]
       interval: 10s
@@ -129,6 +166,7 @@ services:
       DEPLOYMENT_SLOT: blue
       ENVIRONMENT: production
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-hmis_admin}:${POSTGRES_PASSWORD}@postgres:5432/hmis
+      READ_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-hmis_admin}:${POSTGRES_PASSWORD}@postgres-read:5432/hmis
       REDIS_URL: redis://:${REDIS_PASSWORD:-hmis_redis_2026}@redis:6379/0
       SECRET_KEY: ${SECRET_KEY}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY}
@@ -181,6 +219,7 @@ services:
       DEPLOYMENT_SLOT: green
       ENVIRONMENT: production
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-hmis_admin}:${POSTGRES_PASSWORD}@postgres:5432/hmis
+      READ_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-hmis_admin}:${POSTGRES_PASSWORD}@postgres-read:5432/hmis
       REDIS_URL: redis://:${REDIS_PASSWORD:-hmis_redis_2026}@redis:6379/0
       SECRET_KEY: ${SECRET_KEY}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY}
@@ -285,6 +324,7 @@ services:
 
 volumes:
   postgres_data:
+  postgres_read_data:
   postgres_backups:
   redis_data:
   backend_blue_logs:

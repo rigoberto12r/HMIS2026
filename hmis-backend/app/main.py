@@ -30,6 +30,7 @@ from app.modules.pharmacy.routes import router as pharmacy_router
 from app.modules.admin.routes import router as admin_router
 from app.modules.portal.routes import router as portal_router
 from app.modules.reports.routes import router as reports_router
+from app.modules.reports.cqrs_routes import router as cqrs_reports_router
 
 logger = get_logger("hmis.app")
 
@@ -73,6 +74,11 @@ async def lifespan(app: FastAPI):
     from app.tasks import start_scheduler
     start_scheduler()
     logger.info("Programador de tareas en segundo plano iniciado")
+
+    # Registrar proyecciones CQRS
+    from app.cqrs.projections import register_projections
+    register_projections()
+    logger.info("Proyecciones CQRS registradas")
 
     logger.info("HMIS SaaS listo para recibir peticiones")
     yield
@@ -164,6 +170,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_router, prefix="/api/v1/admin", tags=["Administracion"])
     app.include_router(portal_router, prefix="/api/v1/portal", tags=["Patient Portal"])
     app.include_router(reports_router, prefix="/api/v1/reports", tags=["Custom Reports"])
+    app.include_router(cqrs_reports_router, prefix="/api/v1/cqrs/reports", tags=["CQRS Reports (Read Replica)"])
 
     # ------ Endpoints de sistema ------
 

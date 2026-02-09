@@ -19,6 +19,7 @@ class Settings(BaseSettings):
 
     # --- Base de Datos ---
     DATABASE_URL: str = "postgresql+asyncpg://hmis_admin:hmis_dev_2026@localhost:5432/hmis"
+    READ_DATABASE_URL: str | None = None  # Read replica URL (optional, falls back to primary)
     DATABASE_ECHO: bool = False
     DATABASE_POOL_SIZE: int = 20
     DATABASE_MAX_OVERFLOW: int = 10
