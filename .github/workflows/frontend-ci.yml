@@ -1,0 +1,51 @@
+name: Frontend CI
+
+on:
+  push:
+    branches: [main, develop, 'claude/**']
+    paths:
+      - 'hmis-frontend/**'
+      - '.github/workflows/frontend-ci.yml'
+  pull_request:
+    paths:
+      - 'hmis-frontend/**'
+      - '.github/workflows/frontend-ci.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: hmis-frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./hmis-frontend
+        run: npm ci
+
+      - name: Run ESLint
+        working-directory: ./hmis-frontend
+        run: npm run lint
+
+      - name: Run TypeScript type checking
+        working-directory: ./hmis-frontend
+        run: npm run type-check
+
+      - name: Build application
+        working-directory: ./hmis-frontend
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+        run: npm run build
+
+      - name: Check build size
+        working-directory: ./hmis-frontend
+        run: |
+          echo "Build completed successfully"
+          du -sh .next/

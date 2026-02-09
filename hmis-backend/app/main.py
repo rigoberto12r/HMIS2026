@@ -7,9 +7,10 @@ import logging
 from contextlib import asynccontextmanager
 
 import sentry_sdk
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.responses import JSONResponse
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
 from app.core.config import settings
@@ -17,13 +18,17 @@ from app.core.logging import setup_logging, get_logger
 from app.core.middleware import TenantMiddleware, AuditMiddleware
 from app.core.metrics import PrometheusMiddleware
 from app.core.rate_limit import RateLimitMiddleware
+from app.shared.exceptions import DomainException
 from app.modules.auth.routes import router as auth_router
 from app.modules.patients.routes import router as patients_router
 from app.modules.appointments.routes import router as appointments_router
 from app.modules.emr.routes import router as emr_router
 from app.modules.billing.routes import router as billing_router
+from app.modules.billing.payment_routes import router as payment_router
 from app.modules.pharmacy.routes import router as pharmacy_router
 from app.modules.admin.routes import router as admin_router
+from app.modules.portal.routes import router as portal_router
+from app.modules.reports.routes import router as reports_router
 
 logger = get_logger("hmis.app")
 
@@ -63,11 +68,18 @@ async def lifespan(app: FastAPI):
     await redis_client.ping()
     logger.info("Conexion a Redis verificada")
 
+    # Iniciar programador de tareas en segundo plano
+    from app.tasks import start_scheduler
+    start_scheduler()
+    logger.info("Programador de tareas en segundo plano iniciado")
+
     logger.info("HMIS SaaS listo para recibir peticiones")
     yield
 
     # Limpieza
     logger.info("Deteniendo HMIS SaaS...")
+    from app.tasks import stop_scheduler
+    stop_scheduler()
     await engine.dispose()
     await redis_client.close()
 
@@ -88,9 +100,45 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    # ------ Exception Handlers ------
+
+    @app.exception_handler(DomainException)
+    async def domain_exception_handler(request: Request, exc: DomainException):
+        """Maneja excepciones de dominio con respuestas HTTP semanticas."""
+        logger.warning(
+            "DomainException: %s",
+            exc.message,
+            extra={
+                "status_code": exc.status_code,
+                "path": request.url.path,
+                "details": exc.details,
+            },
+        )
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.message, **exc.details},
+        )
+
     # ------ Middleware (orden importa: ultimo registrado se ejecuta primero) ------
 
-    # CORS - origenes dependientes del entorno
+    # Auditoria regulatoria
+    app.add_middleware(AuditMiddleware)
+
+    # Multi-tenancy
+    app.add_middleware(TenantMiddleware)
+
+    # Rate limiting
+    app.add_middleware(RateLimitMiddleware)
+
+    # Metricas Prometheus
+    app.add_middleware(PrometheusMiddleware)
+
+    # Host de confianza
+    allowed_hosts = settings.get_allowed_hosts()
+    if allowed_hosts:
+        app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
+
+    # CORS - DEBE SER EL ULTIMO para ejecutarse primero y agregar headers a todas las respuestas
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.get_allowed_origins(),
@@ -99,23 +147,6 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Host de confianza
-    allowed_hosts = settings.get_allowed_hosts()
-    if allowed_hosts:
-        app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
-
-    # Metricas Prometheus
-    app.add_middleware(PrometheusMiddleware)
-
-    # Rate limiting
-    app.add_middleware(RateLimitMiddleware)
-
-    # Multi-tenancy
-    app.add_middleware(TenantMiddleware)
-
-    # Auditoria regulatoria
-    app.add_middleware(AuditMiddleware)
-
     # ------ Rutas de modulos ------
 
     app.include_router(auth_router, prefix="/api/v1/auth", tags=["Autenticacion"])
@@ -123,8 +154,11 @@ def create_app() -> FastAPI:
     app.include_router(appointments_router, prefix="/api/v1/appointments", tags=["Citas"])
     app.include_router(emr_router, prefix="/api/v1/emr", tags=["Historia Clinica Electronica"])
     app.include_router(billing_router, prefix="/api/v1/billing", tags=["Facturacion y Seguros"])
+    app.include_router(payment_router, prefix="/api/v1/payments", tags=["Stripe Payments"])
     app.include_router(pharmacy_router, prefix="/api/v1/pharmacy", tags=["Farmacia e Inventario"])
     app.include_router(admin_router, prefix="/api/v1/admin", tags=["Administracion"])
+    app.include_router(portal_router, prefix="/api/v1/portal", tags=["Patient Portal"])
+    app.include_router(reports_router, prefix="/api/v1/reports", tags=["Custom Reports"])
 
     # ------ Endpoints de sistema ------
 

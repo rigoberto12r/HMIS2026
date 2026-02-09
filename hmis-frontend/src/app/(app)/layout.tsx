@@ -6,6 +6,7 @@ import { Sidebar } from '@/components/ui/sidebar';
 import { useAuthStore } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import { Bell, Search } from 'lucide-react';
+import { QueryProvider } from './providers';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -51,8 +52,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50">
-      <Sidebar />
+    <QueryProvider>
+      <div className="min-h-screen bg-neutral-50">
+        <Sidebar />
 
       {/* Main content area */}
       <div
@@ -64,7 +66,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       >
         {/* Top bar */}
         <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-neutral-200/60 h-16">
-          <div className="flex items-center justify-between h-full px-4 lg:px-6">
+          <div className="flex items-center justify-between h-full px-4 lg:px-6 pl-16 lg:pl-6">
             {/* Search bar */}
             <div className="relative w-full max-w-md hidden md:block">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
@@ -111,6 +113,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* Page content */}
         <main className="p-4 lg:p-6">{children}</main>
       </div>
-    </div>
+    </QueryProvider>
   );
 }

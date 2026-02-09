@@ -11,12 +11,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.modules.patients.models import Patient, PatientInsurance
+from app.modules.patients.repository import PatientRepository, PatientInsuranceRepository
 from app.modules.patients.schemas import (
     PatientCreate,
     PatientSearchParams,
     PatientUpdate,
 )
 from app.shared.events import DomainEvent, PATIENT_REGISTERED, PATIENT_UPDATED, publish
+from app.shared.exceptions import ConflictError, NotFoundError
 
 
 class PatientService:
@@ -24,6 +26,8 @@ class PatientService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
+        self.repo = PatientRepository(Patient, db)
+        self.insurance_repo = PatientInsuranceRepository(PatientInsurance, db)
 
     async def create_patient(self, data: PatientCreate, created_by: uuid.UUID | None = None) -> Patient:
         """
@@ -34,15 +38,16 @@ class PatientService:
         4. Publica evento de registro
         """
         # Verificar duplicados
-        duplicate = await self._check_duplicate(data.document_type, data.document_number)
+        duplicate = await self.repo.find_by_document(data.document_type, data.document_number)
         if duplicate:
-            raise ValueError(
-                f"Ya existe un paciente con {data.document_type} {data.document_number} "
-                f"(MRN: {duplicate.mrn})"
+            raise ConflictError(
+                f"Ya existe un paciente con {data.document_type} {data.document_number}",
+                details={"mrn": duplicate.mrn, "patient_id": str(duplicate.id)}
             )
 
         # Generar MRN unico
-        mrn = await self._generate_mrn()
+        counter = await self.repo.get_mrn_counter()
+        mrn = f"HMIS-{counter + 1:08d}"
 
         # Crear paciente
         patient_data = data.model_dump(exclude={"insurance_policies"})
@@ -51,8 +56,7 @@ class PatientService:
             mrn=mrn,
             created_by=created_by,
         )
-        self.db.add(patient)
-        await self.db.flush()
+        await self.repo.create(patient)
 
         # Crear polizas de seguro
         for policy_data in data.insurance_policies:
@@ -78,23 +82,11 @@ class PatientService:
 
     async def get_patient(self, patient_id: uuid.UUID) -> Patient | None:
         """Obtiene un paciente por ID con sus seguros."""
-        stmt = (
-            select(Patient)
-            .where(Patient.id == patient_id, Patient.is_active == True)
-            .options(selectinload(Patient.insurance_policies))
-        )
-        result = await self.db.execute(stmt)
-        return result.scalar_one_or_none()
+        return await self.repo.get_with_insurance(patient_id)
 
     async def get_patient_by_mrn(self, mrn: str) -> Patient | None:
         """Obtiene un paciente por su numero de historia clinica (MRN)."""
-        stmt = (
-            select(Patient)
-            .where(Patient.mrn == mrn, Patient.is_active == True)
-            .options(selectinload(Patient.insurance_policies))
-        )
-        result = await self.db.execute(stmt)
-        return result.scalar_one_or_none()
+        return await self.repo.find_by_mrn(mrn)
 
     async def update_patient(
         self,
@@ -134,42 +126,12 @@ class PatientService:
         Busqueda de pacientes con filtros multiples.
         Soporta busqueda por nombre, documento y MRN.
         """
-        stmt = select(Patient).where(Patient.is_active == True)
-        count_base = select(func.count()).select_from(Patient).where(Patient.is_active == True)
-
-        # Busqueda por texto (nombre, documento, MRN)
-        if params.query:
-            search_filter = or_(
-                Patient.first_name.ilike(f"%{params.query}%"),
-                Patient.last_name.ilike(f"%{params.query}%"),
-                Patient.document_number.ilike(f"%{params.query}%"),
-                Patient.mrn.ilike(f"%{params.query}%"),
-            )
-            stmt = stmt.where(search_filter)
-            count_base = count_base.where(search_filter)
-
-        if params.document_type:
-            stmt = stmt.where(Patient.document_type == params.document_type)
-            count_base = count_base.where(Patient.document_type == params.document_type)
-
-        if params.gender:
-            stmt = stmt.where(Patient.gender == params.gender)
-            count_base = count_base.where(Patient.gender == params.gender)
-
-        if params.status:
-            stmt = stmt.where(Patient.status == params.status)
-            count_base = count_base.where(Patient.status == params.status)
-
-        # Total
-        count_result = await self.db.execute(count_base)
-        total = count_result.scalar() or 0
-
-        # Resultados paginados
-        stmt = stmt.offset(offset).limit(limit).order_by(Patient.created_at.desc())
-        result = await self.db.execute(stmt)
-        patients = list(result.scalars().all())
-
-        return patients, total
+        return await self.repo.search(
+            query=params.query,
+            gender=params.gender,
+            offset=offset,
+            limit=limit,
+        )
 
     async def add_insurance(
         self,
@@ -189,24 +151,3 @@ class PatientService:
         await self.db.flush()
         return policy
 
-    # --- Metodos privados ---
-
-    async def _check_duplicate(self, document_type: str, document_number: str) -> Patient | None:
-        """Verifica si ya existe un paciente con el mismo documento."""
-        stmt = select(Patient).where(
-            Patient.document_type == document_type,
-            Patient.document_number == document_number,
-            Patient.is_active == True,
-        )
-        result = await self.db.execute(stmt)
-        return result.scalar_one_or_none()
-
-    async def _generate_mrn(self) -> str:
-        """
-        Genera un numero de historia clinica unico.
-        Formato: HMIS-XXXXXXXX (secuencial con padding).
-        """
-        stmt = select(func.count()).select_from(Patient)
-        result = await self.db.execute(stmt)
-        count = (result.scalar() or 0) + 1
-        return f"HMIS-{count:08d}"
