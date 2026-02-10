@@ -335,6 +335,38 @@ def sample_patient_data() -> dict:
     }
 
 
+@pytest.fixture
+async def sample_patient(db_session: AsyncSession, sample_patient_data: dict):
+    """Crea un paciente de prueba en la base de datos."""
+    from app.modules.patients.models import Patient, InsurancePolicy
+
+    # Extraer insurance policies del dict
+    insurance_data = sample_patient_data.pop("insurance_policies", [])
+
+    # Crear paciente
+    patient = Patient(
+        **sample_patient_data,
+        mrn=f"MRN{uuid.uuid4().hex[:8].upper()}",
+        tenant_id="tenant_test",
+    )
+    db_session.add(patient)
+    await db_session.flush()
+
+    # Crear insurance policies
+    for policy_data in insurance_data:
+        policy = InsurancePolicy(
+            patient_id=patient.id,
+            **policy_data,
+            tenant_id="tenant_test",
+        )
+        db_session.add(policy)
+
+    await db_session.flush()
+    await db_session.commit()
+
+    return patient
+
+
 # =============================================
 # Mock global de eventos (Redis)
 # =============================================
