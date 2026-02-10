@@ -23,7 +23,7 @@ import { usePatients } from '@/hooks/usePatients';
  * - gender: "M" | "F" | ""
  */
 
-export default function PatientsPage() {
+function PatientsContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -97,5 +97,13 @@ export default function PatientsPage() {
         />
       </Card>
     </div>
+  );
+}
+
+export default function PatientsPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center">Cargando...</div>}>
+      <PatientsContent />
+    </Suspense>
   );
 }
