@@ -1,0 +1,339 @@
+{
+  "common": {
+    "loading": "Cargando...",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "view": "Ver",
+    "search": "Buscar",
+    "filter": "Filtrar",
+    "export": "Exportar",
+    "import": "Importar",
+    "print": "Imprimir",
+    "close": "Cerrar",
+    "back": "Volver",
+    "next": "Siguiente",
+    "previous": "Anterior",
+    "submit": "Enviar",
+    "confirm": "Confirmar",
+    "yes": "Sí",
+    "no": "No",
+    "all": "Todos",
+    "none": "Ninguno",
+    "select": "Seleccionar",
+    "actions": "Acciones",
+    "total": "Total",
+    "subtotal": "Subtotal",
+    "date": "Fecha",
+    "time": "Hora",
+    "status": "Estado",
+    "active": "Activo",
+    "inactive": "Inactivo",
+    "pending": "Pendiente",
+    "completed": "Completado",
+    "cancelled": "Cancelado",
+    "error": "Error",
+    "success": "Éxito",
+    "warning": "Advertencia",
+    "info": "Información"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "patients": "Pacientes",
+    "appointments": "Citas",
+    "emr": "Historial Clínico",
+    "billing": "Facturación",
+    "pharmacy": "Farmacia",
+    "reports": "Reportes",
+    "settings": "Configuración",
+    "logout": "Cerrar Sesión"
+  },
+  "auth": {
+    "login": "Iniciar Sesión",
+    "email": "Correo Electrónico",
+    "password": "Contraseña",
+    "forgotPassword": "¿Olvidaste tu contraseña?",
+    "loginButton": "Entrar",
+    "loginError": "Credenciales inválidas",
+    "loginSuccess": "Sesión iniciada exitosamente",
+    "logoutSuccess": "Sesión cerrada exitosamente"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Bienvenido, {{name}}",
+    "stats": {
+      "patients": "Pacientes",
+      "appointments": "Citas Hoy",
+      "invoices": "Facturas Pendientes",
+      "revenue": "Ingresos del Mes"
+    },
+    "recentActivity": "Actividad Reciente",
+    "upcomingAppointments": "Próximas Citas"
+  },
+  "patients": {
+    "title": "Gestión de Pacientes",
+    "newPatient": "Nuevo Paciente",
+    "searchPlaceholder": "Buscar por nombre, MRN o documento...",
+    "table": {
+      "mrn": "MRN",
+      "fullName": "Nombre Completo",
+      "document": "Documento",
+      "gender": "Género",
+      "phone": "Teléfono",
+      "email": "Correo",
+      "actions": "Acciones"
+    },
+    "form": {
+      "firstName": "Nombres",
+      "lastName": "Apellidos",
+      "documentType": "Tipo de Documento",
+      "documentNumber": "Número de Documento",
+      "birthDate": "Fecha de Nacimiento",
+      "gender": "Género",
+      "bloodType": "Tipo de Sangre",
+      "phone": "Teléfono",
+      "email": "Correo Electrónico",
+      "address": "Dirección",
+      "city": "Ciudad",
+      "state": "Provincia/Estado",
+      "zipCode": "Código Postal"
+    },
+    "gender": {
+      "male": "Masculino",
+      "female": "Femenino",
+      "other": "Otro"
+    },
+    "documentTypes": {
+      "cedula": "Cédula",
+      "passport": "Pasaporte",
+      "rnc": "RNC"
+    },
+    "stats": {
+      "totalPatients": "Total de Pacientes",
+      "newThisMonth": "Nuevos este Mes",
+      "activePatients": "Pacientes Activos"
+    },
+    "messages": {
+      "createSuccess": "Paciente creado exitosamente",
+      "updateSuccess": "Paciente actualizado exitosamente",
+      "deleteSuccess": "Paciente eliminado exitosamente",
+      "deleteConfirm": "¿Está seguro de eliminar este paciente?"
+    }
+  },
+  "appointments": {
+    "title": "Gestión de Citas",
+    "newAppointment": "Nueva Cita",
+    "today": "Hoy",
+    "upcoming": "Próximas",
+    "past": "Pasadas",
+    "table": {
+      "patient": "Paciente",
+      "provider": "Médico",
+      "date": "Fecha",
+      "time": "Hora",
+      "type": "Tipo",
+      "status": "Estado",
+      "actions": "Acciones"
+    },
+    "form": {
+      "patientId": "Paciente",
+      "providerId": "Médico",
+      "appointmentDate": "Fecha de Cita",
+      "appointmentTime": "Hora",
+      "appointmentType": "Tipo de Cita",
+      "reason": "Motivo",
+      "notes": "Notas"
+    },
+    "types": {
+      "consultation": "Consulta",
+      "followUp": "Seguimiento",
+      "emergency": "Emergencia",
+      "procedure": "Procedimiento"
+    },
+    "status": {
+      "scheduled": "Programada",
+      "checkedIn": "Registrado",
+      "inProgress": "En Progreso",
+      "completed": "Completada",
+      "cancelled": "Cancelada",
+      "noShow": "No Asistió"
+    },
+    "actions": {
+      "checkIn": "Registrar Entrada",
+      "startEncounter": "Iniciar Encuentro",
+      "cancel": "Cancelar Cita"
+    },
+    "messages": {
+      "createSuccess": "Cita creada exitosamente",
+      "updateSuccess": "Cita actualizada exitosamente",
+      "cancelSuccess": "Cita cancelada exitosamente",
+      "cancelConfirm": "¿Está seguro de cancelar esta cita?"
+    }
+  },
+  "billing": {
+    "title": "Facturación",
+    "newInvoice": "Nueva Factura",
+    "stats": {
+      "totalBilled": "Total Facturado",
+      "totalCollected": "Total Cobrado",
+      "pending": "Pendiente de Cobro",
+      "overdue": "Facturas Vencidas"
+    },
+    "table": {
+      "invoiceNumber": "N° Factura",
+      "patient": "Paciente",
+      "date": "Fecha",
+      "amount": "Monto",
+      "status": "Estado",
+      "actions": "Acciones"
+    },
+    "status": {
+      "draft": "Borrador",
+      "issued": "Emitida",
+      "paid": "Pagada",
+      "partiallyPaid": "Pago Parcial",
+      "overdue": "Vencida",
+      "cancelled": "Anulada"
+    },
+    "actions": {
+      "recordPayment": "Registrar Pago",
+      "sendEmail": "Enviar por Email",
+      "downloadPDF": "Descargar PDF",
+      "creditNote": "Nota de Crédito",
+      "void": "Anular"
+    },
+    "form": {
+      "patientId": "Paciente",
+      "invoiceDate": "Fecha de Factura",
+      "dueDate": "Fecha de Vencimiento",
+      "items": "Ítems",
+      "itemDescription": "Descripción",
+      "quantity": "Cantidad",
+      "unitPrice": "Precio Unitario",
+      "amount": "Monto",
+      "subtotal": "Subtotal",
+      "tax": "ITBIS",
+      "discount": "Descuento",
+      "grandTotal": "Total"
+    },
+    "messages": {
+      "createSuccess": "Factura creada exitosamente",
+      "paymentSuccess": "Pago registrado exitosamente",
+      "voidSuccess": "Factura anulada exitosamente",
+      "voidConfirm": "¿Está seguro de anular esta factura?"
+    }
+  },
+  "emr": {
+    "title": "Historial Clínico Electrónico",
+    "newEncounter": "Nuevo Encuentro",
+    "encounters": "Encuentros",
+    "clinicalNotes": "Notas Clínicas",
+    "diagnoses": "Diagnósticos",
+    "medications": "Medicamentos",
+    "allergies": "Alergias",
+    "vitalSigns": "Signos Vitales",
+    "labResults": "Resultados de Laboratorio",
+    "imaging": "Imagenología",
+    "soap": {
+      "subjective": "Subjetivo (S)",
+      "objective": "Objetivo (O)",
+      "assessment": "Evaluación (A)",
+      "plan": "Plan (P)"
+    },
+    "vitalSignsForm": {
+      "bloodPressureSystolic": "Presión Arterial (Sistólica)",
+      "bloodPressureDiastolic": "Presión Arterial (Diastólica)",
+      "heartRate": "Frecuencia Cardíaca",
+      "temperature": "Temperatura",
+      "respiratoryRate": "Frecuencia Respiratoria",
+      "oxygenSaturation": "Saturación de Oxígeno",
+      "weight": "Peso",
+      "height": "Altura",
+      "bmi": "IMC"
+    },
+    "messages": {
+      "encounterCreated": "Encuentro creado exitosamente",
+      "notesSaved": "Notas guardadas exitosamente",
+      "diagnosisAdded": "Diagnóstico agregado",
+      "orderCreated": "Orden creada exitosamente"
+    }
+  },
+  "pharmacy": {
+    "title": "Farmacia",
+    "prescriptions": "Recetas",
+    "inventory": "Inventario",
+    "dispensation": "Dispensación",
+    "newPrescription": "Nueva Receta",
+    "table": {
+      "patient": "Paciente",
+      "medication": "Medicamento",
+      "dosage": "Dosificación",
+      "quantity": "Cantidad",
+      "status": "Estado",
+      "actions": "Acciones"
+    },
+    "status": {
+      "active": "Activa",
+      "dispensed": "Dispensada",
+      "partiallyDispensed": "Parcialmente Dispensada",
+      "cancelled": "Cancelada",
+      "expired": "Vencida"
+    },
+    "actions": {
+      "dispense": "Dispensar",
+      "refill": "Resurtir",
+      "cancel": "Cancelar"
+    },
+    "messages": {
+      "prescriptionCreated": "Receta creada exitosamente",
+      "dispensed": "Medicamento dispensado exitosamente"
+    }
+  },
+  "reports": {
+    "title": "Reportes y Análisis",
+    "financial": "Reportes Financieros",
+    "clinical": "Reportes Clínicos",
+    "operational": "Reportes Operacionales",
+    "dateRange": "Rango de Fechas",
+    "generate": "Generar Reporte",
+    "export": "Exportar",
+    "formats": {
+      "pdf": "PDF",
+      "excel": "Excel",
+      "csv": "CSV"
+    }
+  },
+  "settings": {
+    "title": "Configuración",
+    "profile": "Perfil",
+    "security": "Seguridad",
+    "notifications": "Notificaciones",
+    "appearance": "Apariencia",
+    "language": "Idioma",
+    "timezone": "Zona Horaria",
+    "changePassword": "Cambiar Contraseña",
+    "twoFactorAuth": "Autenticación de Dos Factores",
+    "apiKeys": "Claves API"
+  },
+  "errors": {
+    "generic": "Ha ocurrido un error. Por favor intente nuevamente.",
+    "networkError": "Error de conexión. Verifique su conexión a internet.",
+    "unauthorized": "No autorizado. Por favor inicie sesión nuevamente.",
+    "forbidden": "No tiene permisos para realizar esta acción.",
+    "notFound": "Recurso no encontrado.",
+    "validationError": "Error de validación. Verifique los datos ingresados.",
+    "serverError": "Error del servidor. Por favor contacte al soporte."
+  },
+  "validation": {
+    "required": "Este campo es requerido",
+    "email": "Ingrese un correo electrónico válido",
+    "minLength": "Debe tener al menos {{min}} caracteres",
+    "maxLength": "No puede exceder {{max}} caracteres",
+    "numeric": "Debe ser un número válido",
+    "phone": "Ingrese un número de teléfono válido",
+    "date": "Ingrese una fecha válida",
+    "min": "El valor mínimo es {{min}}",
+    "max": "El valor máximo es {{max}}"
+  }
+}

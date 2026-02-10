@@ -1,0 +1,339 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "view": "View",
+    "search": "Search",
+    "filter": "Filter",
+    "export": "Export",
+    "import": "Import",
+    "print": "Print",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "submit": "Submit",
+    "confirm": "Confirm",
+    "yes": "Yes",
+    "no": "No",
+    "all": "All",
+    "none": "None",
+    "select": "Select",
+    "actions": "Actions",
+    "total": "Total",
+    "subtotal": "Subtotal",
+    "date": "Date",
+    "time": "Time",
+    "status": "Status",
+    "active": "Active",
+    "inactive": "Inactive",
+    "pending": "Pending",
+    "completed": "Completed",
+    "cancelled": "Cancelled",
+    "error": "Error",
+    "success": "Success",
+    "warning": "Warning",
+    "info": "Information"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "patients": "Patients",
+    "appointments": "Appointments",
+    "emr": "Medical Records",
+    "billing": "Billing",
+    "pharmacy": "Pharmacy",
+    "reports": "Reports",
+    "settings": "Settings",
+    "logout": "Logout"
+  },
+  "auth": {
+    "login": "Log In",
+    "email": "Email",
+    "password": "Password",
+    "forgotPassword": "Forgot your password?",
+    "loginButton": "Sign In",
+    "loginError": "Invalid credentials",
+    "loginSuccess": "Successfully logged in",
+    "logoutSuccess": "Successfully logged out"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Welcome, {{name}}",
+    "stats": {
+      "patients": "Patients",
+      "appointments": "Today's Appointments",
+      "invoices": "Pending Invoices",
+      "revenue": "Monthly Revenue"
+    },
+    "recentActivity": "Recent Activity",
+    "upcomingAppointments": "Upcoming Appointments"
+  },
+  "patients": {
+    "title": "Patient Management",
+    "newPatient": "New Patient",
+    "searchPlaceholder": "Search by name, MRN or document...",
+    "table": {
+      "mrn": "MRN",
+      "fullName": "Full Name",
+      "document": "Document",
+      "gender": "Gender",
+      "phone": "Phone",
+      "email": "Email",
+      "actions": "Actions"
+    },
+    "form": {
+      "firstName": "First Name",
+      "lastName": "Last Name",
+      "documentType": "Document Type",
+      "documentNumber": "Document Number",
+      "birthDate": "Date of Birth",
+      "gender": "Gender",
+      "bloodType": "Blood Type",
+      "phone": "Phone",
+      "email": "Email",
+      "address": "Address",
+      "city": "City",
+      "state": "State/Province",
+      "zipCode": "ZIP Code"
+    },
+    "gender": {
+      "male": "Male",
+      "female": "Female",
+      "other": "Other"
+    },
+    "documentTypes": {
+      "cedula": "ID Card",
+      "passport": "Passport",
+      "rnc": "Tax ID"
+    },
+    "stats": {
+      "totalPatients": "Total Patients",
+      "newThisMonth": "New This Month",
+      "activePatients": "Active Patients"
+    },
+    "messages": {
+      "createSuccess": "Patient created successfully",
+      "updateSuccess": "Patient updated successfully",
+      "deleteSuccess": "Patient deleted successfully",
+      "deleteConfirm": "Are you sure you want to delete this patient?"
+    }
+  },
+  "appointments": {
+    "title": "Appointment Management",
+    "newAppointment": "New Appointment",
+    "today": "Today",
+    "upcoming": "Upcoming",
+    "past": "Past",
+    "table": {
+      "patient": "Patient",
+      "provider": "Provider",
+      "date": "Date",
+      "time": "Time",
+      "type": "Type",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "form": {
+      "patientId": "Patient",
+      "providerId": "Provider",
+      "appointmentDate": "Appointment Date",
+      "appointmentTime": "Time",
+      "appointmentType": "Appointment Type",
+      "reason": "Reason",
+      "notes": "Notes"
+    },
+    "types": {
+      "consultation": "Consultation",
+      "followUp": "Follow-up",
+      "emergency": "Emergency",
+      "procedure": "Procedure"
+    },
+    "status": {
+      "scheduled": "Scheduled",
+      "checkedIn": "Checked In",
+      "inProgress": "In Progress",
+      "completed": "Completed",
+      "cancelled": "Cancelled",
+      "noShow": "No Show"
+    },
+    "actions": {
+      "checkIn": "Check In",
+      "startEncounter": "Start Encounter",
+      "cancel": "Cancel Appointment"
+    },
+    "messages": {
+      "createSuccess": "Appointment created successfully",
+      "updateSuccess": "Appointment updated successfully",
+      "cancelSuccess": "Appointment cancelled successfully",
+      "cancelConfirm": "Are you sure you want to cancel this appointment?"
+    }
+  },
+  "billing": {
+    "title": "Billing",
+    "newInvoice": "New Invoice",
+    "stats": {
+      "totalBilled": "Total Billed",
+      "totalCollected": "Total Collected",
+      "pending": "Pending Collection",
+      "overdue": "Overdue Invoices"
+    },
+    "table": {
+      "invoiceNumber": "Invoice #",
+      "patient": "Patient",
+      "date": "Date",
+      "amount": "Amount",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "status": {
+      "draft": "Draft",
+      "issued": "Issued",
+      "paid": "Paid",
+      "partiallyPaid": "Partially Paid",
+      "overdue": "Overdue",
+      "cancelled": "Cancelled"
+    },
+    "actions": {
+      "recordPayment": "Record Payment",
+      "sendEmail": "Send Email",
+      "downloadPDF": "Download PDF",
+      "creditNote": "Credit Note",
+      "void": "Void"
+    },
+    "form": {
+      "patientId": "Patient",
+      "invoiceDate": "Invoice Date",
+      "dueDate": "Due Date",
+      "items": "Items",
+      "itemDescription": "Description",
+      "quantity": "Quantity",
+      "unitPrice": "Unit Price",
+      "amount": "Amount",
+      "subtotal": "Subtotal",
+      "tax": "Tax",
+      "discount": "Discount",
+      "grandTotal": "Grand Total"
+    },
+    "messages": {
+      "createSuccess": "Invoice created successfully",
+      "paymentSuccess": "Payment recorded successfully",
+      "voidSuccess": "Invoice voided successfully",
+      "voidConfirm": "Are you sure you want to void this invoice?"
+    }
+  },
+  "emr": {
+    "title": "Electronic Medical Records",
+    "newEncounter": "New Encounter",
+    "encounters": "Encounters",
+    "clinicalNotes": "Clinical Notes",
+    "diagnoses": "Diagnoses",
+    "medications": "Medications",
+    "allergies": "Allergies",
+    "vitalSigns": "Vital Signs",
+    "labResults": "Lab Results",
+    "imaging": "Imaging",
+    "soap": {
+      "subjective": "Subjective (S)",
+      "objective": "Objective (O)",
+      "assessment": "Assessment (A)",
+      "plan": "Plan (P)"
+    },
+    "vitalSignsForm": {
+      "bloodPressureSystolic": "Blood Pressure (Systolic)",
+      "bloodPressureDiastolic": "Blood Pressure (Diastolic)",
+      "heartRate": "Heart Rate",
+      "temperature": "Temperature",
+      "respiratoryRate": "Respiratory Rate",
+      "oxygenSaturation": "Oxygen Saturation",
+      "weight": "Weight",
+      "height": "Height",
+      "bmi": "BMI"
+    },
+    "messages": {
+      "encounterCreated": "Encounter created successfully",
+      "notesSaved": "Notes saved successfully",
+      "diagnosisAdded": "Diagnosis added",
+      "orderCreated": "Order created successfully"
+    }
+  },
+  "pharmacy": {
+    "title": "Pharmacy",
+    "prescriptions": "Prescriptions",
+    "inventory": "Inventory",
+    "dispensation": "Dispensation",
+    "newPrescription": "New Prescription",
+    "table": {
+      "patient": "Patient",
+      "medication": "Medication",
+      "dosage": "Dosage",
+      "quantity": "Quantity",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "status": {
+      "active": "Active",
+      "dispensed": "Dispensed",
+      "partiallyDispensed": "Partially Dispensed",
+      "cancelled": "Cancelled",
+      "expired": "Expired"
+    },
+    "actions": {
+      "dispense": "Dispense",
+      "refill": "Refill",
+      "cancel": "Cancel"
+    },
+    "messages": {
+      "prescriptionCreated": "Prescription created successfully",
+      "dispensed": "Medication dispensed successfully"
+    }
+  },
+  "reports": {
+    "title": "Reports and Analytics",
+    "financial": "Financial Reports",
+    "clinical": "Clinical Reports",
+    "operational": "Operational Reports",
+    "dateRange": "Date Range",
+    "generate": "Generate Report",
+    "export": "Export",
+    "formats": {
+      "pdf": "PDF",
+      "excel": "Excel",
+      "csv": "CSV"
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "profile": "Profile",
+    "security": "Security",
+    "notifications": "Notifications",
+    "appearance": "Appearance",
+    "language": "Language",
+    "timezone": "Timezone",
+    "changePassword": "Change Password",
+    "twoFactorAuth": "Two-Factor Authentication",
+    "apiKeys": "API Keys"
+  },
+  "errors": {
+    "generic": "An error occurred. Please try again.",
+    "networkError": "Connection error. Please check your internet connection.",
+    "unauthorized": "Unauthorized. Please log in again.",
+    "forbidden": "You don't have permission to perform this action.",
+    "notFound": "Resource not found.",
+    "validationError": "Validation error. Please check the entered data.",
+    "serverError": "Server error. Please contact support."
+  },
+  "validation": {
+    "required": "This field is required",
+    "email": "Please enter a valid email address",
+    "minLength": "Must be at least {{min}} characters",
+    "maxLength": "Cannot exceed {{max}} characters",
+    "numeric": "Must be a valid number",
+    "phone": "Please enter a valid phone number",
+    "date": "Please enter a valid date",
+    "min": "Minimum value is {{min}}",
+    "max": "Maximum value is {{max}}"
+  }
+}
