@@ -4,26 +4,31 @@ import { api } from '@/lib/api';
 export interface Invoice {
   id: string;
   invoice_number: string;
+  fiscal_number: string | null;
   patient_id: string;
-  patient_name?: string;
-  issue_date: string;
-  due_date: string;
-  status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
+  customer_name: string | null;
+  customer_tax_id?: string | null;
   subtotal: number;
-  tax: number;
-  total: number;
-  paid_amount: number;
-  balance: number;
-  items: InvoiceItem[];
+  tax_total: number;
+  discount_total: number;
+  grand_total: number;
+  currency: string;
+  status: string;
+  due_date?: string | null;
+  paid_date?: string | null;
+  country_code?: string;
+  lines?: InvoiceLineItem[];
   created_at: string;
 }
 
-export interface InvoiceItem {
+export interface InvoiceLineItem {
   id: string;
   description: string;
   quantity: number;
   unit_price: number;
-  total: number;
+  discount: number;
+  tax: number;
+  line_total: number;
 }
 
 export interface InvoicesResponse {
@@ -40,6 +45,7 @@ export interface InvoiceSearchParams {
   patient_id?: string;
   date_from?: string;
   date_to?: string;
+  [key: string]: string | number | boolean | null | undefined;
 }
 
 export interface InvoiceCreateData {

@@ -5,6 +5,7 @@ import { KpiCard } from '@/components/ui/card';
 import { Card, CardHeader } from '@/components/ui/card';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { api } from '@/lib/api';
+import { type Invoice } from '@/hooks/useInvoices';
 import {
   Users,
   CalendarCheck,
@@ -63,21 +64,6 @@ interface Appointment {
   created_at?: string;
 }
 
-interface Invoice {
-  id: string;
-  invoice_number: string;
-  fiscal_number: string | null;
-  patient_id: string;
-  grand_total: number;
-  currency: string;
-  status: string;
-  created_at: string;
-  due_date: string | null;
-  customer_name: string | null;
-  subtotal: number;
-  tax_total: number;
-  discount_total: number;
-}
 
 interface PaginatedResponse<T> {
   items: T[];
@@ -181,7 +167,7 @@ export default function DashboardPage() {
     setError(null);
 
     const results = await Promise.allSettled([
-      api.get<PaginatedResponse<Patient>>('/patients', { page: 1, page_size: 5 }),
+      api.get<PaginatedResponse<Patient>>('/patients/search', { page: 1, page_size: 5 }),
       api.get<PaginatedResponse<Appointment>>('/appointments', { page: 1, page_size: 5 }),
       api.get<PaginatedResponse<Invoice>>('/billing/invoices', { page: 1, page_size: 5 }),
       api.get<ARAgingReport>('/billing/reports/ar-aging'),
@@ -334,7 +320,7 @@ export default function DashboardPage() {
           value={totalPatients}
           change={`${recentPatients.length} recientes`}
           changeType="neutral"
-          icon={<Users className="w-5 h-5" />}
+          icon={Users}
           iconColor="bg-primary-50 text-primary-500"
         />
         <KpiCard
@@ -342,7 +328,7 @@ export default function DashboardPage() {
           value={citasHoy}
           change={`${totalAppointments} en total`}
           changeType="neutral"
-          icon={<CalendarCheck className="w-5 h-5" />}
+          icon={CalendarCheck}
           iconColor="bg-secondary-50 text-secondary-500"
         />
         <KpiCard
@@ -350,7 +336,7 @@ export default function DashboardPage() {
           value={formatRD(ingresosMes)}
           change={`${totalInvoices} facturas`}
           changeType="positive"
-          icon={<Receipt className="w-5 h-5" />}
+          icon={Receipt}
           iconColor="bg-green-50 text-green-600"
         />
         <KpiCard
@@ -358,25 +344,25 @@ export default function DashboardPage() {
           value={formatRD(cuentasPorCobrar)}
           change={arReport ? `${arReport.items.length} pendientes` : 'Sin datos'}
           changeType={cuentasPorCobrar > 0 ? 'negative' : 'neutral'}
-          icon={<DollarSign className="w-5 h-5" />}
+          icon={DollarSign}
           iconColor="bg-orange-50 text-orange-500"
         />
       </div>
 
       {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 overflow-hidden">
         {/* Weekly Patients Bar Chart (placeholder with note) */}
         <Card>
           <CardHeader
             title="Pacientes por Dia"
             subtitle="Ultima semana"
             action={
-              <Badge variant="primary" size="sm">
+              <Badge variant="primary" size="sm" className="hidden sm:inline-flex">
                 <TrendingUp className="w-3 h-3" /> {totalPatients} total
               </Badge>
             }
           />
-          <div className="h-64 relative">
+          <div className="h-64 relative overflow-hidden">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={weeklyChartPlaceholder}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />

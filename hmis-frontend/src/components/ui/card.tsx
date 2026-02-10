@@ -1,5 +1,6 @@
 import { forwardRef, type HTMLAttributes, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
+import { type LucideIcon } from 'lucide-react';
 
 // ─── Card ───────────────────────────────────────────────
 
@@ -108,16 +109,40 @@ interface KpiCardProps {
   value: string | number;
   change?: string;
   changeType?: 'positive' | 'negative' | 'neutral';
-  icon?: ReactNode;
+  icon?: LucideIcon;
   iconColor?: string;
+  variant?: 'default' | 'primary' | 'success' | 'warning' | 'danger';
+  loading?: boolean;
 }
 
-function KpiCard({ title, value, change, changeType = 'neutral', icon, iconColor }: KpiCardProps) {
+function KpiCard({ title, value, change, changeType = 'neutral', icon: Icon, iconColor, variant = 'default', loading }: KpiCardProps) {
   const changeColorMap = {
     positive: 'text-medical-green',
     negative: 'text-medical-red',
     neutral: 'text-neutral-500',
   };
+
+  const variantColorMap = {
+    default: 'bg-neutral-50 text-neutral-500',
+    primary: 'bg-primary-50 text-primary-500',
+    success: 'bg-medical-green/10 text-medical-green',
+    warning: 'bg-medical-yellow/10 text-medical-yellow',
+    danger: 'bg-medical-red/10 text-medical-red',
+  };
+
+  if (loading) {
+    return (
+      <Card className="kpi-card animate-pulse">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <div className="h-4 bg-neutral-200 rounded w-20 mb-2"></div>
+            <div className="h-8 bg-neutral-200 rounded w-16"></div>
+          </div>
+          <div className="w-11 h-11 bg-neutral-200 rounded-lg"></div>
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <Card className="kpi-card">
@@ -131,14 +156,14 @@ function KpiCard({ title, value, change, changeType = 'neutral', icon, iconColor
             </p>
           )}
         </div>
-        {icon && (
+        {Icon && (
           <div
             className={cn(
               'flex-shrink-0 w-11 h-11 rounded-lg flex items-center justify-center',
-              iconColor || 'bg-primary-50 text-primary-500'
+              iconColor || variantColorMap[variant]
             )}
           >
-            {icon}
+            <Icon className="w-5 h-5" />
           </div>
         )}
       </div>

@@ -55,6 +55,7 @@ export interface EncounterSearchParams {
   encounter_type?: string;
   date_from?: string;
   date_to?: string;
+  [key: string]: string | number | boolean | null | undefined;
 }
 
 export interface EncounterCreateData {

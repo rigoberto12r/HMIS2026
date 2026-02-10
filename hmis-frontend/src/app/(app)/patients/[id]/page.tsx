@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { Card, CardHeader } from '@/components/ui/card';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { type Invoice } from '@/hooks/useInvoices';
 import {
   ArrowLeft,
   Edit,
@@ -56,17 +57,6 @@ interface Appointment {
   notes?: string | null;
 }
 
-interface Invoice {
-  id: string;
-  invoice_number: string;
-  patient_id: string;
-  total_amount: number;
-  currency: string;
-  status: string;
-  issued_at: string;
-  due_date: string;
-  description?: string | null;
-}
 
 interface Diagnosis {
   id: string;
@@ -189,8 +179,8 @@ export default function PatientDetailPage() {
       switch (tabId) {
         case 'historial': {
           const [diagData, allergyData] = await Promise.all([
-            api.get<Diagnosis[]>(`/emr/diagnoses/patient/${patientId}`),
-            api.get<Allergy[]>(`/emr/allergies/patient/${patientId}`),
+            api.get<Diagnosis[]>(`/emr/patients/${patientId}/diagnoses`),
+            api.get<Allergy[]>(`/emr/patients/${patientId}/allergies`),
           ]);
           setDiagnoses(diagData);
           setAllergies(allergyData);
@@ -627,16 +617,16 @@ export default function PatientDetailPage() {
                           {invoice.invoice_number}
                         </td>
                         <td className="px-4 py-3 text-neutral-500 text-xs">
-                          {formatDate(invoice.issued_at)}
+                          {formatDate(invoice.created_at)}
                         </td>
                         <td className="px-4 py-3 text-neutral-600">
-                          {invoice.description || '---'}
+                          {invoice.customer_name || '---'}
                         </td>
                         <td className="px-4 py-3 text-right font-medium text-neutral-900">
-                          {formatCurrency(invoice.total_amount, invoice.currency)}
+                          {formatCurrency(invoice.grand_total, invoice.currency)}
                         </td>
                         <td className="px-4 py-3 text-neutral-500 text-xs">
-                          {formatDate(invoice.due_date)}
+                          {formatDate(invoice.due_date || '')}
                         </td>
                         <td className="px-4 py-3">
                           <StatusBadge status={invoice.status} />

@@ -429,3 +429,110 @@ class CreditNoteLine(Base, UUIDMixin, TimestampMixin):
     line_total: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
 
     credit_note: Mapped["CreditNote"] = relationship(back_populates="lines")
+
+
+# =============================================
+# Stripe Payment Integration Models
+# =============================================
+
+
+class StripeCustomer(Base, BaseEntity):
+    """
+    Stripe customer mapping for patients.
+    Links HMIS patients to Stripe customer IDs for payment processing.
+    """
+
+    __tablename__ = "stripe_customers"
+
+    patient_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False, unique=True, index=True
+    )
+    stripe_customer_id: Mapped[str] = mapped_column(
+        String(100), nullable=False, unique=True, index=True
+    )
+    email: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    default_payment_method: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    stripe_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+
+    __table_args__ = (Index("ix_stripe_customers_patient", "patient_id"),)
+
+
+class StripePaymentMethod(Base, BaseEntity):
+    """
+    Saved payment methods from Stripe.
+    Stores tokenized payment method details for future use.
+    """
+
+    __tablename__ = "stripe_payment_methods"
+
+    patient_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False, index=True
+    )
+    stripe_customer_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    stripe_payment_method_id: Mapped[str] = mapped_column(
+        String(100), nullable=False, unique=True, index=True
+    )
+    type: Mapped[str] = mapped_column(String(20), nullable=False)  # card, bank_account, etc.
+    card_brand: Mapped[str | None] = mapped_column(String(20), nullable=True)  # visa, mastercard, etc.
+    card_last4: Mapped[str | None] = mapped_column(String(4), nullable=True)
+    card_exp_month: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    card_exp_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    is_default: Mapped[bool] = mapped_column(default=False)
+    stripe_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+
+
+class StripePaymentIntent(Base, BaseEntity):
+    """
+    Stripe payment intent tracking.
+    Links Stripe payment intents to HMIS invoices for reconciliation.
+    """
+
+    __tablename__ = "stripe_payment_intents"
+
+    invoice_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("invoices.id"), nullable=False, index=True
+    )
+    patient_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False, index=True
+    )
+    stripe_payment_intent_id: Mapped[str] = mapped_column(
+        String(100), nullable=False, unique=True, index=True
+    )
+    stripe_customer_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    amount: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(30), nullable=False
+    )  # requires_payment_method, requires_confirmation, requires_action, processing, succeeded, canceled
+    payment_method: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    client_secret: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    last_payment_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    stripe_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    webhook_received_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
+class StripeRefund(Base, BaseEntity):
+    """
+    Stripe refund tracking.
+    Records refunds processed through Stripe.
+    """
+
+    __tablename__ = "stripe_refunds"
+
+    payment_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("payments.id"), nullable=False, index=True
+    )
+    stripe_refund_id: Mapped[str] = mapped_column(
+        String(100), nullable=False, unique=True, index=True
+    )
+    stripe_payment_intent_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    amount: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    reason: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(30), nullable=False
+    )  # pending, succeeded, failed, canceled
+    stripe_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True)

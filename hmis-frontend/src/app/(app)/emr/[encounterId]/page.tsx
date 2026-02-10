@@ -297,7 +297,7 @@ export default function EncounterDetailPage() {
   const fetchDiagnoses = useCallback(async (patientId: string) => {
     try {
       const data = await api.get<Diagnosis[]>(
-        `/emr/diagnoses/patient/${patientId}`
+        `/emr/patients/${patientId}/diagnoses`
       );
       setDiagnoses(extractItems<Diagnosis>(data));
     } catch {
@@ -308,7 +308,7 @@ export default function EncounterDetailPage() {
   const fetchAllergies = useCallback(async (patientId: string) => {
     try {
       const data = await api.get<Allergy[]>(
-        `/emr/allergies/patient/${patientId}`
+        `/emr/patients/${patientId}/allergies`
       );
       setAllergies(extractItems<Allergy>(data));
     } catch {

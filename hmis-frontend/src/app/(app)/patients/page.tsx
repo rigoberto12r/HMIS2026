@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { UserPlus, AlertTriangle } from 'lucide-react';
@@ -8,13 +8,14 @@ import { PatientStats, PatientTable } from '@/components/patients';
 import { PatientFiltersClient } from '@/components/patients/PatientFiltersClient';
 import { CreatePatientButton } from '@/components/patients/CreatePatientButton';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { usePatients } from '@/hooks/usePatients';
 
 /**
  * Patients Page - Client Component
  *
  * Interactive patient management with URL state:
  * - URL state management for bookmarkable filters
- * - Client-side data fetching with React Query (when available)
+ * - React Query for data fetching with automatic caching
  *
  * Search params:
  * - page: number (default: 1)
@@ -31,47 +32,13 @@ export default function PatientsPage() {
   const genderFilter = searchParams.get('gender') || '';
   const pageSize = 10;
 
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-
-  // Fetch patients
-  useEffect(() => {
-    const fetchPatients = async () => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
-        const queryParams = new URLSearchParams({
-          page: page.toString(),
-          page_size: pageSize.toString(),
-        });
-
-        if (search) queryParams.append('query', search);
-        if (genderFilter) queryParams.append('gender', genderFilter);
-
-        const response = await fetch(`${apiUrl}/patients/search?${queryParams.toString()}`, {
-          cache: 'no-store',
-          headers: { 'Content-Type': 'application/json' },
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch patients: ${response.statusText}`);
-        }
-
-        const result = await response.json();
-        setData(result);
-      } catch (err) {
-        setError(err as Error);
-        console.error('Error fetching patients:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchPatients();
-  }, [page, search, genderFilter, pageSize]);
+  // Use React Query hook with authenticated API client
+  const { data, isLoading, error } = usePatients({
+    page,
+    page_size: pageSize,
+    query: search || undefined,
+    gender: genderFilter || undefined,
+  });
 
   const handlePageChange = (newPage: number) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -118,11 +85,11 @@ export default function PatientsPage() {
         </div>
       )}
 
-      {/* Table - Client-side pagination */}
+      {/* Table - Client-side pagination with React Query */}
       <Card>
         <PatientTable
           patients={data?.items || []}
-          loading={loading}
+          loading={isLoading}
           page={page}
           pageSize={pageSize}
           total={data?.total || 0}

@@ -6,7 +6,7 @@ Validacion y serializacion de datos de entrada/salida.
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, computed_field
 
 
 # =============================================
@@ -136,6 +136,13 @@ class PatientResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+    # Alias for frontend compatibility
+    @computed_field
+    @property
+    def date_of_birth(self) -> date:
+        """Alias for birth_date for frontend compatibility."""
+        return self.birth_date
+
     model_config = {"from_attributes": True}
 
 
@@ -151,6 +158,13 @@ class PatientListResponse(BaseModel):
     phone: str | None = None
     status: str
 
+    # Alias for frontend compatibility
+    @computed_field
+    @property
+    def date_of_birth(self) -> date:
+        """Alias for birth_date for frontend compatibility."""
+        return self.birth_date
+
     model_config = {"from_attributes": True}
 
 
@@ -160,3 +174,10 @@ class PatientSearchParams(BaseModel):
     document_type: str | None = None
     gender: str | None = None
     status: str | None = "active"
+
+
+class PatientStatsResponse(BaseModel):
+    """Estadisticas de pacientes."""
+    total_patients: int = Field(description="Total de pacientes registrados")
+    new_this_month: int = Field(description="Pacientes nuevos este mes")
+    active_patients: int = Field(description="Pacientes activos")

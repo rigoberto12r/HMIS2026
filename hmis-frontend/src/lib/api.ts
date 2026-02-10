@@ -45,8 +45,8 @@ function getRefreshToken(): string | null {
 }
 
 function getTenantId(): string | null {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem('hmis_tenant_id');
+  if (typeof window === 'undefined') return 'demo';
+  return localStorage.getItem('hmis_tenant_id') || 'demo';
 }
 
 function setTokens(accessToken: string, refreshToken: string): void {
@@ -143,7 +143,6 @@ async function handleResponse<T>(response: Response): Promise<T> {
 
 function buildHeaders(customHeaders?: Record<string, string>): Record<string, string> {
   const token = getAuthToken();
-  const tenantId = getTenantId();
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -155,9 +154,7 @@ function buildHeaders(customHeaders?: Record<string, string>): Record<string, st
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  if (tenantId) {
-    headers['X-Tenant-ID'] = tenantId;
-  }
+  // Multi-tenancy disabled - using public schema directly
 
   return headers;
 }

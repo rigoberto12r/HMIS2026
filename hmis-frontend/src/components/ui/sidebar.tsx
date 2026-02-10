@@ -132,7 +132,7 @@ export function Sidebar() {
       {/* Mobile toggle button */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="lg:hidden fixed top-3 left-3 z-40 w-10 h-10 flex items-center justify-center rounded-lg bg-white shadow-md text-neutral-600"
+        className="lg:hidden fixed top-3 left-3 z-40 w-11 h-11 flex items-center justify-center rounded-lg bg-white shadow-md text-neutral-600 touch-manipulation"
         aria-label="Abrir menu"
       >
         <Menu className="w-5 h-5" />

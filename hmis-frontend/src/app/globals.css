@@ -85,7 +85,7 @@
   }
 
   .form-input {
-    @apply w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm
+    @apply w-full rounded-lg border border-neutral-300 px-3 py-2 text-base sm:text-sm
            placeholder:text-neutral-400 focus:border-primary-500 focus:ring-1
            focus:ring-primary-500 transition-colors duration-150;
   }
@@ -114,5 +114,54 @@
 
   .text-balance {
     text-wrap: balance;
+  }
+
+  /* Mobile-specific utilities */
+  .touch-target {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .safe-left {
+    padding-left: env(safe-area-inset-left);
+  }
+
+  .safe-right {
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* Mobile scrolling utilities */
+  .scroll-touch {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Mobile-friendly text sizing (minimum 16px to prevent zoom on iOS) */
+  .text-mobile-base {
+    font-size: 16px;
+  }
+
+  @media (max-width: 640px) {
+    .mobile-full-bleed {
+      margin-left: -1rem;
+      margin-right: -1rem;
+      width: calc(100% + 2rem);
+    }
   }
 }

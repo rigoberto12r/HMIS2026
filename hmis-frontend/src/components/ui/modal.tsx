@@ -24,11 +24,11 @@ interface ModalProps {
 // ─── Styles ─────────────────────────────────────────────
 
 const sizeStyles: Record<ModalSize, string> = {
-  sm: 'max-w-sm',
-  md: 'max-w-lg',
-  lg: 'max-w-2xl',
-  xl: 'max-w-4xl',
-  full: 'max-w-[90vw]',
+  sm: 'max-w-sm sm:max-w-sm',
+  md: 'max-w-full sm:max-w-lg',
+  lg: 'max-w-full sm:max-w-2xl',
+  xl: 'max-w-full sm:max-w-4xl',
+  full: 'max-w-full sm:max-w-[90vw]',
 };
 
 // ─── Component ──────────────────────────────────────────
@@ -98,18 +98,18 @@ export function Modal({
       <div className="fixed inset-0 bg-black/50 animate-fade-in" aria-hidden="true" />
 
       {/* Modal panel */}
-      <div className="fixed inset-0 flex items-center justify-center p-4">
+      <div className="fixed inset-0 flex items-end sm:items-center justify-center p-0 sm:p-4">
         <div
           className={cn(
-            'w-full bg-white rounded-xl shadow-xl animate-slide-in',
-            'max-h-[85vh] flex flex-col',
+            'w-full bg-white rounded-t-xl sm:rounded-xl shadow-xl animate-slide-in',
+            'max-h-[90vh] sm:max-h-[85vh] flex flex-col',
             sizeStyles[size]
           )}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
           {(title || showCloseButton) && (
-            <div className="flex items-start justify-between p-5 border-b border-neutral-100">
+            <div className="flex items-start justify-between p-4 sm:p-5 border-b border-neutral-100">
               <div>
                 {title && (
                   <h2 id="modal-title" className="text-lg font-semibold text-neutral-900">
@@ -137,11 +137,11 @@ export function Modal({
           )}
 
           {/* Body */}
-          <div className="flex-1 overflow-y-auto p-5">{children}</div>
+          <div className="flex-1 overflow-y-auto p-4 sm:p-5">{children}</div>
 
           {/* Footer */}
           {footer && (
-            <div className="flex items-center justify-end gap-3 p-5 border-t border-neutral-100">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3 p-4 sm:p-5 border-t border-neutral-100">
               {footer}
             </div>
           )}

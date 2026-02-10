@@ -450,3 +450,104 @@ class RNCValidationResponse(BaseModel):
     formatted: str | None = None
     business_name: str | None = None
     message: str | None = None
+
+
+# =============================================
+# Stripe Payment Gateway
+# =============================================
+
+
+class StripePaymentIntentCreate(BaseModel):
+    """Create Stripe Payment Intent request."""
+    invoice_id: uuid.UUID
+    patient_id: uuid.UUID
+    amount: float = Field(gt=0, description="Amount in base currency")
+    currency: str = Field(default="usd", max_length=3)
+    customer_email: str | None = Field(default=None, max_length=200)
+    customer_name: str | None = Field(default=None, max_length=200)
+    payment_method_id: str | None = Field(default=None, description="Existing payment method ID")
+    save_payment_method: bool = Field(default=False, description="Save payment method for future use")
+    metadata: dict[str, Any] | None = None
+
+
+class StripePaymentIntentResponse(BaseModel):
+    """Stripe Payment Intent response."""
+    payment_intent_id: str
+    client_secret: str
+    amount: float
+    currency: str
+    status: str
+    customer_id: str | None = None
+
+
+class StripePaymentConfirm(BaseModel):
+    """Confirm Stripe Payment Intent request."""
+    payment_intent_id: str
+    payment_method_id: str | None = None
+
+
+class StripePaymentIntentStatus(BaseModel):
+    """Payment Intent status response."""
+    payment_intent_id: str
+    status: str
+    amount: float
+    currency: str
+    customer_id: str | None = None
+    payment_method: str | None = None
+    metadata: dict[str, Any] | None = None
+
+
+class StripeRefundCreate(BaseModel):
+    """Create Stripe refund request."""
+    payment_intent_id: str
+    amount: float | None = Field(default=None, description="Amount to refund (None for full refund)")
+    reason: str | None = Field(default=None, description="Refund reason")
+    metadata: dict[str, Any] | None = None
+
+
+class StripeRefundResponse(BaseModel):
+    """Stripe refund response."""
+    refund_id: str
+    payment_intent_id: str
+    amount: float
+    currency: str
+    status: str
+    reason: str | None = None
+
+
+class StripePaymentMethodResponse(BaseModel):
+    """Stripe payment method response."""
+    id: str
+    type: str
+    card: dict[str, Any] | None = None
+    created: datetime
+
+
+class StripeCustomerResponse(BaseModel):
+    """Stripe customer response."""
+    patient_id: uuid.UUID
+    stripe_customer_id: str
+    email: str | None = None
+    name: str | None = None
+    default_payment_method: str | None = None
+    payment_methods: list[StripePaymentMethodResponse] = []
+
+    model_config = {"from_attributes": True}
+
+
+class StripeWebhookEvent(BaseModel):
+    """Stripe webhook event."""
+    event_type: str
+    processed: bool
+    data: dict[str, Any] | None = None
+
+
+class StripeReceiptResponse(BaseModel):
+    """Payment receipt response."""
+    payment_intent_id: str
+    charge_id: str | None = None
+    receipt_url: str | None = None
+    amount: float
+    currency: str
+    status: str
+    created: datetime

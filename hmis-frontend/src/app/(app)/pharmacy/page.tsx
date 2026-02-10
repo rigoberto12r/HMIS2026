@@ -554,7 +554,7 @@ export default function PharmacyPage() {
           value={loading ? '...' : kpiTotalProducts}
           change="Catalogo activo"
           changeType="neutral"
-          icon={<Package className="w-5 h-5" />}
+          icon={Package}
           iconColor="bg-blue-50 text-blue-500"
         />
         <KpiCard
@@ -562,7 +562,7 @@ export default function PharmacyPage() {
           value={loading ? '...' : kpiPendingRx}
           change="Requieren atencion"
           changeType={kpiPendingRx > 0 ? 'negative' : 'positive'}
-          icon={<Clock className="w-5 h-5" />}
+          icon={Clock}
           iconColor="bg-yellow-50 text-yellow-500"
         />
         <KpiCard
@@ -570,7 +570,7 @@ export default function PharmacyPage() {
           value={loading ? '...' : kpiLowStockAlerts}
           change="Productos bajo minimo"
           changeType={kpiLowStockAlerts > 0 ? 'negative' : 'positive'}
-          icon={<AlertTriangle className="w-5 h-5" />}
+          icon={AlertTriangle}
           iconColor="bg-red-50 text-red-500"
         />
         <KpiCard
@@ -578,7 +578,7 @@ export default function PharmacyPage() {
           value={loading ? '...' : kpiExpiringCount}
           change="En los proximos 90 dias"
           changeType={kpiExpiringCount > 0 ? 'negative' : 'positive'}
-          icon={<Calendar className="w-5 h-5" />}
+          icon={Calendar}
           iconColor="bg-orange-50 text-orange-500"
         />
       </div>

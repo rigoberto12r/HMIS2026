@@ -32,10 +32,10 @@ const variantStyles: Record<ButtonVariant, string> = {
 };
 
 const sizeStyles: Record<ButtonSize, string> = {
-  sm: 'h-8 px-3 text-xs gap-1.5',
-  md: 'h-10 px-4 text-sm gap-2',
+  sm: 'h-9 sm:h-8 px-3 text-xs gap-1.5',
+  md: 'h-11 sm:h-10 px-4 text-sm gap-2',
   lg: 'h-12 px-6 text-base gap-2.5',
-  icon: 'h-10 w-10 p-0 justify-center',
+  icon: 'h-11 w-11 sm:h-10 sm:w-10 p-0 justify-center',
 };
 
 // ─── Component ──────────────────────────────────────────

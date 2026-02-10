@@ -19,6 +19,7 @@ from app.modules.patients.schemas import (
     PatientListResponse,
     PatientResponse,
     PatientSearchParams,
+    PatientStatsResponse,
     PatientUpdate,
 )
 from app.modules.patients.service import PatientService
@@ -81,6 +82,20 @@ async def search_patients(
         page=pagination.page,
         page_size=pagination.page_size,
     )
+
+
+@router.get("/stats", response_model=PatientStatsResponse)
+async def get_patient_stats(
+    current_user: User = Depends(require_permissions("patients:read")),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Obtener estadisticas de pacientes.
+    Retorna total de pacientes, nuevos este mes y activos.
+    """
+    service = PatientService(db)
+    stats = await service.get_stats()
+    return PatientStatsResponse(**stats)
 
 
 @router.get("/{patient_id}", response_model=PatientResponse)

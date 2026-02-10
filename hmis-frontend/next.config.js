@@ -1,11 +1,28 @@
 /** @type {import('next').NextConfig} */
-const withBundleAnalyzer = require('@next/bundle-analyzer')({
-  enabled: process.env.ANALYZE === 'true',
-});
+// Bundle analyzer is optional - only load if installed
+let withBundleAnalyzer;
+try {
+  withBundleAnalyzer = require('@next/bundle-analyzer')({
+    enabled: process.env.ANALYZE === 'true',
+  });
+} catch (e) {
+  // Bundle analyzer not installed, use passthrough
+  withBundleAnalyzer = (config) => config;
+}
 
 const nextConfig = {
   reactStrictMode: true,
   output: 'standalone',
+
+  // Skip type checking during build (CI runs tsc separately)
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+
+  // Skip ESLint during build (CI runs eslint separately)
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
 
   // Performance optimizations
   swcMinify: true,

@@ -31,6 +31,7 @@ export interface PatientSearchParams {
   gender?: string;
   document_type?: string;
   status?: string;
+  [key: string]: string | number | boolean | null | undefined;
 }
 
 export interface PatientCreateData {

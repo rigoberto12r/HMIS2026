@@ -115,23 +115,24 @@ export function SOAPNoteEditor({ initialNote, onSave, onSign, readOnly = false }
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-5">
       {/* SOAP Editor (main area) */}
-      <div className="lg:col-span-2 space-y-4">
+      <div className="lg:col-span-2 space-y-3 lg:space-y-4">
         <Card>
           <CardHeader
             title="Nota SOAP"
             subtitle="Documentacion clinica estructurada"
             action={
               !readOnly ? (
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <Button
                     variant="outline"
                     size="sm"
                     leftIcon={<Save className="w-4 h-4" />}
                     onClick={() => onSave?.(note)}
                   >
-                    Guardar
+                    <span className="hidden sm:inline">Guardar</span>
+                    <span className="sm:hidden">Guardar</span>
                   </Button>
                   <Button
                     size="sm"
@@ -139,7 +140,8 @@ export function SOAPNoteEditor({ initialNote, onSave, onSign, readOnly = false }
                     leftIcon={<FileSignature className="w-4 h-4" />}
                     onClick={() => onSign?.(note)}
                   >
-                    Firmar Nota
+                    <span className="hidden sm:inline">Firmar Nota</span>
+                    <span className="sm:hidden">Firmar</span>
                   </Button>
                 </div>
               ) : undefined

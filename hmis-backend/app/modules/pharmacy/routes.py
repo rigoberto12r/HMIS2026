@@ -177,6 +177,30 @@ async def create_prescription(
     return PrescriptionResponse.model_validate(prescription)
 
 
+@router.get("/prescriptions", response_model=PaginatedResponse[PrescriptionResponse])
+async def list_prescriptions(
+    prescription_status: str | None = Query(default=None, alias="status"),
+    pagination: Annotated[PaginationParams, Depends()] = None,
+    current_user: User = Depends(require_permissions("prescriptions:read")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Listar prescripciones con filtro opcional por estado."""
+    if pagination is None:
+        pagination = PaginationParams()
+    service = PrescriptionService(db)
+    prescriptions, total = await service.list_prescriptions(
+        status=prescription_status,
+        offset=pagination.offset,
+        limit=pagination.page_size,
+    )
+    return PaginatedResponse.create(
+        items=[PrescriptionResponse.model_validate(p) for p in prescriptions],
+        total=total,
+        page=pagination.page,
+        page_size=pagination.page_size,
+    )
+
+
 @router.get("/prescriptions/{prescription_id}", response_model=PrescriptionResponse)
 async def get_prescription(
     prescription_id: uuid.UUID,

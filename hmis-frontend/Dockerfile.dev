@@ -1,0 +1,23 @@
+# Dockerfile simplificado para desarrollo
+# Evita problemas de timeout y es más rápido para rebuild
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Configurar npm para desarrollo (timeouts más largos, cache habilitado)
+RUN npm config set fetch-retry-maxtimeout 120000 && \
+    npm config set fetch-retry-mintimeout 15000 && \
+    npm config set fetch-timeout 300000
+
+# Instalar dependencias primero (mejor cache layer)
+COPY package.json package-lock.json ./
+RUN npm ci --prefer-offline --no-audit --ignore-scripts
+
+# Copiar el resto del código
+COPY . .
+
+EXPOSE 3000
+
+# Comando por defecto
+CMD ["npm", "run", "dev"]
