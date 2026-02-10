@@ -33,7 +33,17 @@ const nextConfig = {
   // Experimental features for better performance
   experimental: {
     optimizePackageImports: ['lucide-react', 'recharts', '@tanstack/react-query'],
+    // Enable server actions for future use
+    serverActions: true,
+    // Optimize CSS
+    optimizeCss: true,
   },
+
+  // Production source maps (smaller)
+  productionBrowserSourceMaps: false,
+
+  // Reduce bundle size
+  poweredByHeader: false,
 
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1',
