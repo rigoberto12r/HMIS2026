@@ -36,6 +36,7 @@ from app.shared.events import (
     DomainEvent,
     publish,
 )
+from app.shared.exceptions import BusinessRuleViolation, ValidationError
 
 
 class ProductService:
@@ -247,6 +248,26 @@ class PrescriptionService:
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
+    async def list_prescriptions(
+        self, status: str | None = None, offset: int = 0, limit: int = 10
+    ) -> tuple[list[Prescription], int]:
+        """List all prescriptions with optional status filter and pagination."""
+        stmt = select(Prescription).where(Prescription.is_active == True)
+        if status:
+            stmt = stmt.where(Prescription.status == status)
+
+        # Get total count
+        count_stmt = select(func.count()).select_from(stmt.subquery())
+        total_result = await self.db.execute(count_stmt)
+        total = total_result.scalar_one()
+
+        # Get paginated results
+        stmt = stmt.order_by(Prescription.created_at.desc()).offset(offset).limit(limit)
+        result = await self.db.execute(stmt)
+        prescriptions = list(result.scalars().all())
+
+        return prescriptions, total
+
     async def cancel_prescription(
         self, prescription_id: uuid.UUID, reason: str,
         cancelled_by: uuid.UUID | None = None,
@@ -256,7 +277,10 @@ class PrescriptionService:
         if not prescription:
             return None
         if prescription.status not in ("active", "partially_dispensed"):
-            raise ValueError("Solo se pueden cancelar prescripciones activas")
+            raise BusinessRuleViolation(
+                rule="prescription_cancel_only_active",
+                message="Solo se pueden cancelar prescripciones activas"
+            )
         prescription.status = "cancelled"
         prescription.updated_by = cancelled_by
         await self.db.flush()
@@ -289,11 +313,17 @@ class DispensationService:
         prescription = result.scalar_one_or_none()
 
         if not prescription or prescription.status not in ("active", "partially_dispensed"):
-            raise ValueError("Prescripcion no valida o ya dispensada completamente")
+            raise ValidationError(
+                "Prescripcion no valida o ya dispensada completamente",
+                details={"prescription_id": str(prescription_id)}
+            )
 
         # Verificar que el paciente coincide con la prescripcion
         if str(prescription.patient_id) != str(data.patient_id):
-            raise ValueError("El paciente no coincide con la prescripcion")
+            raise BusinessRuleViolation(
+                rule="prescription_patient_mismatch",
+                message="El paciente no coincide con la prescripcion"
+            )
 
         # Verificar lote
         stmt = select(ProductLot).where(ProductLot.id == data.product_lot_id)
@@ -301,10 +331,16 @@ class DispensationService:
         lot = result.scalar_one_or_none()
 
         if not lot or lot.quantity_available < data.quantity_dispensed:
-            raise ValueError("Lote no disponible o cantidad insuficiente")
+            raise BusinessRuleViolation(
+                rule="insufficient_inventory",
+                message="Lote no disponible o cantidad insuficiente"
+            )
 
         if lot.expiration_date <= date.today():
-            raise ValueError("No se puede dispensar de un lote vencido")
+            raise BusinessRuleViolation(
+                rule="expired_lot",
+                message="No se puede dispensar de un lote vencido"
+            )
 
         # Crear dispensacion
         dispensation = Dispensation(
@@ -580,7 +616,10 @@ class PurchaseOrderService:
         }
         allowed = valid_transitions.get(order.status, [])
         if new_status not in allowed:
-            raise ValueError(f"Transicion de '{order.status}' a '{new_status}' no permitida")
+            raise BusinessRuleViolation(
+                rule="purchase_order_invalid_transition",
+                message=f"Transicion de '{order.status}' a '{new_status}' no permitida"
+            )
 
         order.status = new_status
         if new_status == "approved":

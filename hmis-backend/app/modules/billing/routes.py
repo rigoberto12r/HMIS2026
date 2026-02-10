@@ -651,3 +651,62 @@ async def validate_rnc(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+# ============================================================
+# Estadísticas
+# ============================================================
+
+@router.get("/stats")
+async def get_billing_stats(
+    date_from: date | None = Query(default=None),
+    date_to: date | None = Query(default=None),
+    current_user: User = Depends(require_permissions("billing:read")),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Obtener estadísticas de facturación.
+    Retorna totales facturados, cobrados y pendientes.
+    """
+    from sqlalchemy import func, select
+    from app.modules.billing.models import Invoice, Payment
+    from datetime import datetime, timezone
+
+    # Base query para facturas
+    invoice_stmt = select(Invoice).where(Invoice.is_active == True)
+    
+    if date_from:
+        start_dt = datetime.combine(date_from, datetime.min.time()).replace(tzinfo=timezone.utc)
+        invoice_stmt = invoice_stmt.where(Invoice.created_at >= start_dt)
+    
+    if date_to:
+        end_dt = datetime.combine(date_to, datetime.max.time()).replace(tzinfo=timezone.utc)
+        invoice_stmt = invoice_stmt.where(Invoice.created_at <= end_dt)
+    
+    # Total facturado
+    total_billed_stmt = select(func.sum(Invoice.grand_total)).select_from(
+        invoice_stmt.subquery()
+    )
+    total_billed_result = await db.execute(total_billed_stmt)
+    total_billed = float(total_billed_result.scalar_one() or 0)
+    
+    # Total cobrado (facturas pagadas)
+    paid_stmt = select(func.sum(Invoice.grand_total)).select_from(
+        invoice_stmt.where(Invoice.status == "paid").subquery()
+    )
+    paid_result = await db.execute(paid_stmt)
+    total_collected = float(paid_result.scalar_one() or 0)
+    
+    # Pendiente de cobro
+    total_pending = total_billed - total_collected
+    
+    # Conteo de facturas
+    count_stmt = select(func.count(Invoice.id)).select_from(invoice_stmt.subquery())
+    count_result = await db.execute(count_stmt)
+    invoices_count = count_result.scalar_one() or 0
+    
+    return {
+        "total_billed": total_billed,
+        "total_collected": total_collected,
+        "total_pending": total_pending,
+        "invoices_count": invoices_count,
+    }

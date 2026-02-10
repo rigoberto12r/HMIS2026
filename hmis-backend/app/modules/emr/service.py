@@ -33,6 +33,15 @@ from app.modules.emr.schemas import (
     ProblemListUpdate,
     VitalSignsCreate,
 )
+from app.shared.exceptions import BusinessRuleViolation
+from app.modules.emr.repository import (
+    EncounterRepository,
+    ClinicalNoteRepository,
+    DiagnosisRepository,
+    VitalSignsRepository,
+    AllergyRepository,
+    ProblemListRepository,
+)
 from app.shared.events import (
     CLINICAL_NOTE_SIGNED,
     ENCOUNTER_COMPLETED,
@@ -48,6 +57,7 @@ class EncounterService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
+        self.repo = EncounterRepository(Encounter, db)
 
     async def create_encounter(
         self, data: EncounterCreate, created_by: uuid.UUID | None = None
@@ -57,8 +67,7 @@ class EncounterService:
             **data.model_dump(),
             created_by=created_by,
         )
-        self.db.add(encounter)
-        await self.db.flush()
+        await self.repo.create(encounter)
 
         await publish(DomainEvent(
             event_type=ENCOUNTER_STARTED,
@@ -76,18 +85,7 @@ class EncounterService:
 
     async def get_encounter(self, encounter_id: uuid.UUID) -> Encounter | None:
         """Obtiene un encuentro con todas sus relaciones."""
-        stmt = (
-            select(Encounter)
-            .where(Encounter.id == encounter_id, Encounter.is_active == True)
-            .options(
-                selectinload(Encounter.clinical_notes),
-                selectinload(Encounter.diagnoses),
-                selectinload(Encounter.vital_signs),
-                selectinload(Encounter.medical_orders),
-            )
-        )
-        result = await self.db.execute(stmt)
-        return result.scalar_one_or_none()
+        return await self.repo.get_with_details(encounter_id)
 
     async def complete_encounter(
         self, encounter_id: uuid.UUID, disposition: str | None = None,
@@ -127,7 +125,10 @@ class EncounterService:
         if not encounter:
             return None
         if encounter.status == "completed":
-            raise ValueError("No se puede modificar un encuentro completado")
+            raise BusinessRuleViolation(
+                rule="encounter_immutable_when_completed",
+                message="No se puede modificar un encuentro completado"
+            )
         if data.chief_complaint is not None:
             encounter.chief_complaint = data.chief_complaint
         if data.disposition is not None:
@@ -144,7 +145,10 @@ class EncounterService:
         if not encounter:
             return None
         if encounter.status == "completed":
-            raise ValueError("No se puede cancelar un encuentro completado")
+            raise BusinessRuleViolation(
+                rule="encounter_cannot_cancel_when_completed",
+                message="No se puede cancelar un encuentro completado"
+            )
         encounter.status = "cancelled"
         encounter.updated_by = updated_by
         await self.db.flush()
@@ -197,6 +201,7 @@ class ClinicalNoteService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
+        self.repo = ClinicalNoteRepository(ClinicalNote, db)
 
     async def create_note(
         self, data: ClinicalNoteCreate, created_by: uuid.UUID | None = None
@@ -204,20 +209,18 @@ class ClinicalNoteService:
         """Crea una nota clinica (SOAP, procedimiento, egreso, enmienda)."""
         # Si es enmienda, verificar que la nota original existe y esta firmada
         if data.amendment_of:
-            original = await self.db.execute(
-                select(ClinicalNote).where(ClinicalNote.id == data.amendment_of)
-            )
-            original_note = original.scalar_one_or_none()
+            original_note = await self.repo.get(data.amendment_of)
             if not original_note or not original_note.is_signed:
-                raise ValueError("Solo se pueden enmendar notas firmadas")
+                raise BusinessRuleViolation(
+                    rule="note_amendment_requires_signature",
+                    message="Solo se pueden enmendar notas firmadas"
+                )
 
         note = ClinicalNote(
             **data.model_dump(),
             created_by=created_by,
         )
-        self.db.add(note)
-        await self.db.flush()
-        return note
+        return await self.repo.create(note)
 
     async def sign_note(
         self, note_id: uuid.UUID, signed_by: uuid.UUID
@@ -226,14 +229,14 @@ class ClinicalNoteService:
         Firma una nota clinica. Una vez firmada, no puede modificarse.
         Solo se permiten enmiendas (addendums).
         """
-        stmt = select(ClinicalNote).where(ClinicalNote.id == note_id)
-        result = await self.db.execute(stmt)
-        note = result.scalar_one_or_none()
-
+        note = await self.repo.get(note_id)
         if not note:
             return None
         if note.is_signed:
-            raise ValueError("La nota ya esta firmada. Use una enmienda para cambios.")
+            raise BusinessRuleViolation(
+                rule="note_immutable_when_signed",
+                message="La nota ya esta firmada. Use una enmienda para cambios."
+            )
 
         note.is_signed = True
         note.signed_at = datetime.now(timezone.utc)
@@ -252,19 +255,11 @@ class ClinicalNoteService:
 
     async def get_note(self, note_id: uuid.UUID) -> ClinicalNote | None:
         """Obtiene una nota clinica por ID."""
-        stmt = select(ClinicalNote).where(ClinicalNote.id == note_id)
-        result = await self.db.execute(stmt)
-        return result.scalar_one_or_none()
+        return await self.repo.get(note_id)
 
     async def get_encounter_notes(self, encounter_id: uuid.UUID) -> list[ClinicalNote]:
         """Lista notas de un encuentro."""
-        stmt = (
-            select(ClinicalNote)
-            .where(ClinicalNote.encounter_id == encounter_id)
-            .order_by(ClinicalNote.created_at.desc())
-        )
-        result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        return await self.repo.find_by_encounter(encounter_id)
 
 
 class DiagnosisService:

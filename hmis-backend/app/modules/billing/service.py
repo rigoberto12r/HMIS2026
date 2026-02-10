@@ -34,6 +34,7 @@ from app.shared.events import (
     DomainEvent,
     publish,
 )
+from app.shared.exceptions import NotFoundError, BusinessRuleViolation
 
 
 class ServiceCatalogService:
@@ -497,16 +498,18 @@ class InvoiceVoidService:
         invoice = result.scalar_one_or_none()
 
         if not invoice:
-            raise ValueError("Factura no encontrada")
+            raise NotFoundError("Factura", str(invoice_id))
         if invoice.status not in ("draft", "issued"):
-            raise ValueError(
-                f"No se puede anular factura en estado '{invoice.status}'. "
-                "Solo facturas en borrador o emitidas."
+            raise BusinessRuleViolation(
+                rule="invoice_void_status",
+                message=f"No se puede anular factura en estado '{invoice.status}'. "
+                        "Solo facturas en borrador o emitidas."
             )
         if invoice.payments and any(float(p.amount) > 0 for p in invoice.payments):
-            raise ValueError(
-                "No se puede anular factura con pagos registrados. "
-                "Primero reverse los pagos o emita una nota de credito."
+            raise BusinessRuleViolation(
+                rule="invoice_void_with_payments",
+                message="No se puede anular factura con pagos registrados. "
+                        "Primero reverse los pagos o emita una nota de credito."
             )
 
         # Registrar anulacion fiscal si tiene NCF
@@ -580,7 +583,7 @@ class PaymentReversalService:
         payment = result.scalar_one_or_none()
 
         if not payment:
-            raise ValueError("Pago no encontrado")
+            raise NotFoundError("Pago", str(payment_id))
 
         # Desactivar el pago (soft delete)
         payment.is_active = False

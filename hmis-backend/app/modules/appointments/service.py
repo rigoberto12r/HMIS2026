@@ -33,6 +33,7 @@ from app.shared.events import (
     DomainEvent,
     publish,
 )
+from app.shared.exceptions import ConflictError, BusinessRuleViolation
 
 
 class ProviderService:
@@ -195,7 +196,10 @@ class AppointmentService:
             data.provider_id, data.scheduled_start, data.scheduled_end
         )
         if conflict:
-            raise ValueError("El horario seleccionado ya no esta disponible")
+            raise ConflictError(
+                "El horario seleccionado ya no esta disponible",
+                details={"provider_id": str(data.provider_id), "start": data.scheduled_start.isoformat()}
+            )
 
         appointment = Appointment(
             **data.model_dump(),
@@ -239,9 +243,10 @@ class AppointmentService:
 
         allowed = valid_transitions.get(appointment.status, [])
         if data.status not in allowed:
-            raise ValueError(
-                f"No se puede cambiar de '{appointment.status}' a '{data.status}'. "
-                f"Transiciones validas: {', '.join(allowed)}"
+            raise BusinessRuleViolation(
+                rule="appointment_status_transition",
+                message=f"No se puede cambiar de '{appointment.status}' a '{data.status}'. "
+                        f"Transiciones validas: {', '.join(allowed)}"
             )
 
         appointment.status = data.status
@@ -293,7 +298,10 @@ class AppointmentService:
             return None
 
         if appointment.status not in ("scheduled", "confirmed"):
-            raise ValueError("Solo se pueden reagendar citas programadas o confirmadas")
+            raise BusinessRuleViolation(
+                rule="appointment_reschedule",
+                message="Solo se pueden reagendar citas programadas o confirmadas"
+            )
 
         # Verificar disponibilidad del nuevo horario
         conflict = await self._check_conflict(
@@ -301,7 +309,10 @@ class AppointmentService:
             exclude_id=appointment_id,
         )
         if conflict:
-            raise ValueError("El nuevo horario no esta disponible")
+            raise ConflictError(
+                "El nuevo horario no esta disponible",
+                details={"new_start": data.new_start.isoformat()}
+            )
 
         appointment.scheduled_start = data.new_start
         appointment.scheduled_end = data.new_end
@@ -364,6 +375,62 @@ class AppointmentService:
         )
         result = await self.db.execute(stmt)
         return list(result.scalars().all()), total
+
+    async def get_stats(
+        self, date_from: date | None = None, date_to: date | None = None
+    ) -> dict:
+        """
+        Obtiene estadisticas de citas del tenant actual.
+        - Total de citas
+        - Citas por status (scheduled, completed, cancelled, no_show)
+        - Filtrable por rango de fechas
+        """
+        from datetime import timezone
+
+        # Base query
+        base_stmt = select(Appointment).where(Appointment.is_active == True)
+
+        # Aplicar filtros de fecha si se proporcionan
+        if date_from:
+            start_datetime = datetime.combine(date_from, datetime.min.time()).replace(
+                tzinfo=timezone.utc
+            )
+            base_stmt = base_stmt.where(Appointment.scheduled_start >= start_datetime)
+
+        if date_to:
+            end_datetime = datetime.combine(date_to, datetime.max.time()).replace(
+                tzinfo=timezone.utc
+            )
+            base_stmt = base_stmt.where(Appointment.scheduled_start <= end_datetime)
+
+        # Total de citas
+        total_stmt = select(func.count()).select_from(base_stmt.subquery())
+        total_result = await self.db.execute(total_stmt)
+        total = total_result.scalar() or 0
+
+        # Citas por status
+        statuses = {
+            "scheduled": ["scheduled", "confirmed"],
+            "completed": ["completed"],
+            "cancelled": ["cancelled"],
+            "no_show": ["no_show"],
+        }
+
+        counts = {}
+        for key, status_list in statuses.items():
+            stmt = select(func.count()).select_from(
+                base_stmt.where(Appointment.status.in_(status_list)).subquery()
+            )
+            result = await self.db.execute(stmt)
+            counts[key] = result.scalar() or 0
+
+        return {
+            "total": total,
+            "scheduled": counts["scheduled"],
+            "completed": counts["completed"],
+            "cancelled": counts["cancelled"],
+            "no_show": counts["no_show"],
+        }
 
     async def _check_conflict(
         self,
