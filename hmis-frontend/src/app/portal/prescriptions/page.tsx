@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { Pill, Calendar, User, RefreshCw, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
+const PORTAL_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+
 interface Prescription {
   id: string;
   encounter_date: string;
@@ -34,7 +36,7 @@ export default function PortalPrescriptionsPage() {
     try {
       const token = localStorage.getItem('portal_access_token');
       const response = await fetch(
-        `http://localhost:8000/api/v1/portal/prescriptions?active_only=${activeOnly}`,
+        `${PORTAL_API_URL}/portal/prescriptions?active_only=${activeOnly}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -56,7 +58,7 @@ export default function PortalPrescriptionsPage() {
 
     try {
       const token = localStorage.getItem('portal_access_token');
-      const response = await fetch('http://localhost:8000/api/v1/portal/prescriptions/refill', {
+      const response = await fetch(`${PORTAL_API_URL}/portal/prescriptions/refill`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

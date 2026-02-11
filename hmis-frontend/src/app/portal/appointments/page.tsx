@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { Calendar, Clock, MapPin, User, X, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
+const PORTAL_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+
 interface Appointment {
   id: string;
   provider_name: string;
@@ -32,7 +34,7 @@ export default function PortalAppointmentsPage() {
     try {
       const token = localStorage.getItem('portal_access_token');
       const response = await fetch(
-        `http://localhost:8000/api/v1/portal/appointments?include_past=${showPast}`,
+        `${PORTAL_API_URL}/portal/appointments?include_past=${showPast}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -58,7 +60,7 @@ export default function PortalAppointmentsPage() {
     try {
       const token = localStorage.getItem('portal_access_token');
       const response = await fetch(
-        `http://localhost:8000/api/v1/portal/appointments/${appointmentId}/cancel`,
+        `${PORTAL_API_URL}/portal/appointments/${appointmentId}/cancel`,
         {
           method: 'POST',
           headers: {

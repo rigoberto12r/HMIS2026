@@ -108,13 +108,17 @@ export function useCreateInvoice() {
 /**
  * Hook to void an invoice.
  * Backend: POST /billing/invoices/{id}/void with InvoiceVoidRequest schema
+ * Returns { mensaje, invoice_id, status } — NOT a full Invoice object.
  */
 export function useVoidInvoice() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
-      const response = await api.post<Invoice>(`/billing/invoices/${id}/void`, { reason });
+      const response = await api.post<{ mensaje: string; invoice_id: string; status: string }>(
+        `/billing/invoices/${id}/void`,
+        { reason }
+      );
       return response;
     },
     onSuccess: (_, variables) => {

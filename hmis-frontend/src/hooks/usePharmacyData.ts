@@ -20,6 +20,7 @@ export function usePharmacyStats() {
     queryKey: ['pharmacy-stats'],
     queryFn: () => api.get<PharmacyStats>('/pharmacy/stats'),
     staleTime: 30 * 1000, // 30 seconds
+    retry: false, // Endpoint may not exist yet — avoid spamming 404s
   });
 }
 

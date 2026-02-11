@@ -166,7 +166,10 @@ function buildHeaders(customHeaders?: Record<string, string>): Record<string, st
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  // Multi-tenancy disabled - using public schema directly
+  const tenantId = getTenantId();
+  if (tenantId) {
+    headers['X-Tenant-ID'] = tenantId;
+  }
 
   return headers;
 }
