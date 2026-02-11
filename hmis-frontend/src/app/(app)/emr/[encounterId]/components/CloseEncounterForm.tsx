@@ -65,9 +65,9 @@ export function CloseEncounterForm({
               Disposicion: {encounter.disposition}
             </p>
           )}
-          {encounter.completed_at && (
+          {encounter.end_datetime && (
             <p className="text-sm text-neutral-400 mt-1">
-              Fecha de cierre: {formatDate(encounter.completed_at)}
+              Fecha de cierre: {formatDate(encounter.end_datetime)}
             </p>
           )}
         </div>

@@ -68,7 +68,7 @@ export function EncounterHeader({
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-xl font-bold text-neutral-900">
-                {encounter.patient_name || 'Paciente'}
+                Encuentro Clinico
               </h1>
               <Badge
                 variant={statusVariants[encounter.status] || 'default'}
@@ -83,13 +83,13 @@ export function EncounterHeader({
               <span className="mx-1.5">|</span>
               <span className="text-neutral-400">
                 <Clock className="w-3 h-3 inline" />{' '}
-                {formatDate(encounter.created_at)}
+                {formatDate(encounter.start_datetime)}
               </span>
-              {encounter.completed_at && (
+              {encounter.end_datetime && (
                 <>
                   <span className="mx-1.5">|</span>
                   <span className="text-green-600">
-                    Completado: {formatDate(encounter.completed_at)}
+                    Completado: {formatDate(encounter.end_datetime)}
                   </span>
                 </>
               )}
@@ -134,12 +134,6 @@ export function EncounterHeader({
       {/* Encounter info */}
       <div className="mt-4 pt-4 border-t border-neutral-100 flex flex-wrap gap-4 text-sm">
         <div>
-          <span className="text-neutral-500">Proveedor:</span>{' '}
-          <span className="font-medium">
-            {encounter.doctor_name || '---'}
-          </span>
-        </div>
-        <div>
           <span className="text-neutral-500">Tipo:</span>{' '}
           <Badge variant="primary" size="sm">
             {typeLabels[encounter.encounter_type] || encounter.encounter_type}
@@ -147,7 +141,7 @@ export function EncounterHeader({
         </div>
         <div>
           <span className="text-neutral-500">Motivo:</span>{' '}
-          <span className="font-medium">{encounter.reason || '---'}</span>
+          <span className="font-medium">{encounter.chief_complaint || '---'}</span>
         </div>
         {encounter.disposition && (
           <div>

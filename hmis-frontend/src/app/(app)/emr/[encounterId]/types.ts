@@ -5,15 +5,14 @@
 export interface Encounter {
   id: string;
   patient_id: string;
-  doctor_id: string;
+  provider_id: string;
   encounter_type: string;
   status: string;
-  reason: string | null;
+  start_datetime: string;
+  end_datetime: string | null;
+  chief_complaint: string | null;
   disposition: string | null;
-  patient_name: string | null;
-  doctor_name: string | null;
   created_at: string;
-  completed_at: string | null;
 }
 
 export interface SOAPNote {
