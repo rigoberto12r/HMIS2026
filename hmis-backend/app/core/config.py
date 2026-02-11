@@ -71,6 +71,12 @@ class Settings(BaseSettings):
     AWS_REGION: str = "us-east-1"  # AWS region for Secrets Manager
     USE_SECRETS_MANAGER: bool = False  # Set to True in production to use AWS Secrets Manager
 
+    # --- SMART on FHIR (OAuth2 for third-party apps) ---
+    SMART_RSA_PRIVATE_KEY_PATH: str = "keys/smart_rsa_private.pem"
+    SMART_ISSUER: str = "http://localhost:8000"
+    SMART_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    SMART_AUTH_CODE_EXPIRE_MINUTES: int = 10
+
     # --- Paginacion ---
     DEFAULT_PAGE_SIZE: int = 20
     MAX_PAGE_SIZE: int = 100

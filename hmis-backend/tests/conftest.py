@@ -36,6 +36,9 @@ def _compile_jsonb_sqlite(element, compiler, **kw):
 from app.core.database import Base, get_db
 from app.core.security import create_access_token, hash_password
 
+# Import SMART models so Base.metadata includes their tables
+import app.modules.smart.models  # noqa: F401
+
 
 # =============================================
 # Base de datos de prueba (SQLite async en memoria)
@@ -303,13 +306,14 @@ def medico_auth_headers(medico_user) -> dict:
 @pytest.fixture
 def sample_patient_data() -> dict:
     """Datos de ejemplo para crear un paciente dominicano."""
+    from datetime import date
     return {
         "document_type": "cedula",
         "document_number": "00112345678",
         "first_name": "Juan",
         "last_name": "Perez",
         "second_last_name": "Garcia",
-        "birth_date": "1985-03-15",
+        "birth_date": date(1985, 3, 15),
         "gender": "M",
         "blood_type": "O+",
         "phone": "809-555-0100",
@@ -327,7 +331,7 @@ def sample_patient_data() -> dict:
                 "insurer_name": "ARS Humano",
                 "policy_number": "HUM-123456",
                 "plan_type": "Contributivo",
-                "coverage_start": "2025-01-01",
+                "coverage_start": date(2025, 1, 1),
                 "copay_percentage": 20.0,
                 "is_primary": True,
             }
@@ -338,7 +342,7 @@ def sample_patient_data() -> dict:
 @pytest.fixture
 async def sample_patient(db_session: AsyncSession, sample_patient_data: dict):
     """Crea un paciente de prueba en la base de datos."""
-    from app.modules.patients.models import Patient, InsurancePolicy
+    from app.modules.patients.models import Patient, PatientInsurance
 
     # Extraer insurance policies del dict
     insurance_data = sample_patient_data.pop("insurance_policies", [])
@@ -347,17 +351,15 @@ async def sample_patient(db_session: AsyncSession, sample_patient_data: dict):
     patient = Patient(
         **sample_patient_data,
         mrn=f"MRN{uuid.uuid4().hex[:8].upper()}",
-        tenant_id="tenant_test",
     )
     db_session.add(patient)
     await db_session.flush()
 
     # Crear insurance policies
     for policy_data in insurance_data:
-        policy = InsurancePolicy(
+        policy = PatientInsurance(
             patient_id=patient.id,
             **policy_data,
-            tenant_id="tenant_test",
         )
         db_session.add(policy)
 
@@ -365,6 +367,59 @@ async def sample_patient(db_session: AsyncSession, sample_patient_data: dict):
     await db_session.commit()
 
     return patient
+
+
+@pytest.fixture
+async def sample_encounter(db_session: AsyncSession, sample_patient, medico_user):
+    """Crea un encounter de prueba en la base de datos."""
+    from datetime import datetime, timezone
+    from app.modules.emr.models import Encounter
+
+    encounter = Encounter(
+        patient_id=sample_patient.id,
+        provider_id=medico_user.id,
+        encounter_type="ambulatory",
+        status="in_progress",
+        start_datetime=datetime.now(timezone.utc),
+        chief_complaint="Dolor de cabeza",
+        created_by=medico_user.id,
+        updated_by=medico_user.id,
+    )
+    db_session.add(encounter)
+    await db_session.flush()
+    await db_session.commit()
+
+    return encounter
+
+
+@pytest.fixture
+async def sample_vital_signs(db_session: AsyncSession, sample_encounter, medico_user):
+    """Crea un registro de signos vitales de prueba en la base de datos."""
+    from datetime import datetime, timezone
+    from app.modules.emr.models import VitalSigns
+
+    vital_signs = VitalSigns(
+        patient_id=sample_encounter.patient_id,
+        encounter_id=sample_encounter.id,
+        measured_at=datetime.now(timezone.utc),
+        measured_by=medico_user.id,
+        temperature=37.2,
+        heart_rate=75,
+        blood_pressure_sys=120,
+        blood_pressure_dia=80,
+        respiratory_rate=16,
+        oxygen_saturation=98.0,
+        weight=70.5,
+        height=175.0,
+        bmi=23.0,
+        pain_scale=2,
+        glucose=95.0,
+    )
+    db_session.add(vital_signs)
+    await db_session.flush()
+    await db_session.commit()
+
+    return vital_signs
 
 
 # =============================================
@@ -379,3 +434,16 @@ def mock_event_publish():
     """
     with patch("app.shared.events.publish", new_callable=AsyncMock) as mock_pub:
         yield mock_pub
+
+
+# =============================================
+# SMART on FHIR: reset RSA key cache per test
+# =============================================
+
+@pytest.fixture(autouse=True)
+def reset_smart_keys():
+    """Reset SMART RSA key cache so each test gets a clean state."""
+    from app.modules.smart.keys import reset_keys
+    reset_keys()
+    yield
+    reset_keys()
