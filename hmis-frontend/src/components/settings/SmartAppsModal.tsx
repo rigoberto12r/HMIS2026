@@ -50,10 +50,21 @@ export function SmartAppsModal({ isOpen, onClose }: SmartAppsModalProps) {
     setFormType('confidential');
     setShowForm(false);
     setCreatedClient(null);
+    setConfirmDeleteId(null);
+    setCopiedField(null);
   };
 
+  const [formError, setFormError] = useState<string | null>(null);
+
   const handleRegister = async () => {
+    setFormError(null);
     if (!formName.trim() || !formRedirectUri.trim()) return;
+    try {
+      new URL(formRedirectUri.trim());
+    } catch {
+      setFormError('La Redirect URI debe ser una URL valida (ej: https://miapp.com/callback)');
+      return;
+    }
     try {
       const result = await registerMutation.mutateAsync({
         client_name: formName.trim(),
@@ -64,7 +75,7 @@ export function SmartAppsModal({ isOpen, onClose }: SmartAppsModalProps) {
       setCreatedClient(result);
       setShowForm(false);
     } catch {
-      // Error handled by React Query
+      // Error displayed below via registerMutation.error
     }
   };
 
@@ -195,10 +206,10 @@ export function SmartAppsModal({ isOpen, onClose }: SmartAppsModalProps) {
                       Cancelar
                     </Button>
                   </div>
-                  {registerMutation.isError && (
+                  {(formError || registerMutation.isError) && (
                     <div className="flex items-center gap-2 text-red-600 text-xs">
                       <AlertTriangle className="w-3.5 h-3.5" />
-                      Error al registrar la aplicacion
+                      {formError || (registerMutation.error instanceof Error ? registerMutation.error.message : 'Error al registrar la aplicacion')}
                     </div>
                   )}
                 </div>

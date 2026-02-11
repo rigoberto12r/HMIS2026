@@ -126,10 +126,22 @@ async function handleResponse<T>(response: Response): Promise<T> {
       }
     }
 
+    // Pydantic 422 errors return detail as an array of objects
+    let detail: string | undefined;
+    if (typeof errorData.detail === 'string') {
+      detail = errorData.detail;
+    } else if (Array.isArray(errorData.detail)) {
+      detail = errorData.detail
+        .map((e: { msg?: string; loc?: string[] }) =>
+          e.msg ? `${e.loc?.slice(-1)[0] || 'campo'}: ${e.msg}` : String(e)
+        )
+        .join(', ');
+    }
+
     throw new ApiClientError({
-      message: (errorData.message as string) || (errorData.detail as string) || `Error ${response.status}`,
+      message: (errorData.message as string) || detail || `Error ${response.status}`,
       status: response.status,
-      detail: errorData.detail as string,
+      detail,
       errors: errorData.errors as Record<string, string[]>,
     });
   }

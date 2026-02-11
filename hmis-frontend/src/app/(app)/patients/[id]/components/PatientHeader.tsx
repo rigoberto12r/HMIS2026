@@ -70,8 +70,8 @@ export function PatientHeader({ patient, allergies }: Props) {
         {/* Avatar */}
         <div className="w-16 h-16 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
           <span className="text-primary-700 text-xl font-bold">
-            {patient.first_name[0]}
-            {patient.last_name[0]}
+            {patient.first_name?.[0] || 'P'}
+            {patient.last_name?.[0] || 'X'}
           </span>
         </div>
 

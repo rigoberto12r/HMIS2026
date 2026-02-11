@@ -20,19 +20,21 @@ import {
 } from 'lucide-react';
 import { useEncounters, useCreateEncounter } from '@/hooks/useEncounters';
 import { usePatients, type Patient } from '@/hooks/usePatients';
+import { useAuthStore } from '@/lib/auth';
 
 // ─── Types ──────────────────────────────────────────────
 
 interface Encounter {
   id: string;
   patient_id: string;
-  doctor_id: string;
+  provider_id: string;
   encounter_type: string;
   status: string;
-  reason: string | null;
+  chief_complaint: string | null;
   disposition: string | null;
   patient_name: string | null;
   doctor_name: string | null;
+  start_datetime: string;
   created_at: string;
   completed_at: string | null;
 }
@@ -86,6 +88,7 @@ function extractItems<T>(data: unknown): T[] {
 
 export default function EMRPage() {
   const router = useRouter();
+  const user = useAuthStore((s) => s.user);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState('');
@@ -124,7 +127,7 @@ export default function EMRPage() {
   }, [patientSearch]);
 
   const { data: patientResults, isFetching: searchingPatients } = usePatients(
-    { query: debouncedSearch, page_size: 8 },
+    { query: debouncedSearch || undefined, page_size: 8 },
   );
 
   const patientOptions = useMemo(() => {
@@ -174,22 +177,24 @@ export default function EMRPage() {
   // ─── Create Encounter ─────────────────────────────────
 
   const handleCreateEncounter = useCallback(async () => {
-    if (!newPatientId || !newType) return;
+    if (!newPatientId || !newType || !user?.id) return;
     try {
       const created = await createEncounter.mutateAsync({
         patient_id: newPatientId,
-        encounter_type: newType as 'outpatient' | 'inpatient' | 'emergency' | 'telemedicine',
-        reason: newReason || '',
+        provider_id: user.id,
+        encounter_type: newType,
+        chief_complaint: newReason || undefined,
       });
       setShowNewModal(false);
       setNewPatientId('');
+      setSelectedPatient(null);
       setNewType('');
       setNewReason('');
       router.push(`/emr/${created.id}`);
     } catch {
       // Error is available via createEncounter.error
     }
-  }, [newPatientId, newType, newReason, router, createEncounter]);
+  }, [newPatientId, newType, newReason, user, router, createEncounter]);
 
   const handleCloseModal = useCallback(() => {
     setShowNewModal(false);
@@ -205,12 +210,12 @@ export default function EMRPage() {
 
   const columns: Column<Encounter>[] = [
     {
-      key: 'created_at',
+      key: 'start_datetime',
       header: 'Fecha',
       sortable: true,
       width: '160px',
       render: (row) => (
-        <span className="font-mono text-xs">{formatDate(row.created_at)}</span>
+        <span className="font-mono text-xs">{formatDate(row.start_datetime || row.created_at)}</span>
       ),
     },
     {
@@ -246,11 +251,11 @@ export default function EMRPage() {
       },
     },
     {
-      key: 'reason',
+      key: 'chief_complaint',
       header: 'Motivo de Consulta',
       render: (row) => (
         <span className="text-neutral-600 text-sm truncate max-w-xs block">
-          {row.reason || '---'}
+          {row.chief_complaint || '---'}
         </span>
       ),
     },
@@ -452,7 +457,7 @@ export default function EMRPage() {
                       <div className="w-4 h-4 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
                     ) : undefined}
                   />
-                  {showPatientDropdown && patientSearch.length > 0 && (
+                  {showPatientDropdown && patientSearch.length >= 2 && (
                     <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                       {patientOptions.length === 0 && !searchingPatients ? (
                         <div className="p-3 text-center text-sm text-neutral-400">
