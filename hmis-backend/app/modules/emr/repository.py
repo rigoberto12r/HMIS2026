@@ -60,7 +60,7 @@ class EncounterRepository(BaseRepository[Encounter]):
         total = total_result.scalar_one()
 
         # Get paginated results
-        stmt = stmt.order_by(Encounter.start_time.desc()).offset(offset).limit(limit)
+        stmt = stmt.order_by(Encounter.start_datetime.desc()).offset(offset).limit(limit)
         result = await self.db.execute(stmt)
         encounters = list(result.scalars().all())
 
@@ -249,7 +249,6 @@ class VitalSignsRepository(BaseRepository[VitalSigns]):
             .join(Encounter)
             .where(
                 Encounter.patient_id == patient_id,
-                VitalSigns.is_active == True,
             )
             .order_by(VitalSigns.measured_at.desc())
             .limit(limit)

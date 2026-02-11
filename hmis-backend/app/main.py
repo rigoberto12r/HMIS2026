@@ -40,6 +40,7 @@ from app.modules.reports.cqrs_routes import router as cqrs_reports_router
 from app.modules.fhir.routes import router as fhir_router
 from app.modules.ccda.routes import router as ccda_router
 from app.modules.smart.routes import router as smart_router, build_smart_configuration
+from app.modules.cds.routes import router as cds_router
 
 # Optional: Stripe payment routes (if stripe package is installed)
 try:
@@ -197,6 +198,7 @@ def create_app() -> FastAPI:
     app.include_router(fhir_router, prefix="/api/v1/fhir", tags=["FHIR R4 Interoperability"])
     app.include_router(ccda_router, prefix="/api/v1/ccda", tags=["C-CDA R2.1 Export"])
     app.include_router(smart_router, prefix="/api/v1/smart", tags=["SMART on FHIR"])
+    app.include_router(cds_router, prefix="/api/v1/cds", tags=["Clinical Decision Support"])
 
     # ------ SMART on FHIR Discovery (must be at root per spec) ------
 

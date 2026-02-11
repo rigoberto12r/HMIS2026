@@ -77,6 +77,11 @@ class Settings(BaseSettings):
     SMART_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     SMART_AUTH_CODE_EXPIRE_MINUTES: int = 10
 
+    # --- Clinical Decision Support ---
+    DRUGBANK_API_URL: str = ""
+    DRUGBANK_API_KEY: str = ""
+    CDS_USE_EXTERNAL_API: bool = False
+
     # --- Paginacion ---
     DEFAULT_PAGE_SIZE: int = 20
     MAX_PAGE_SIZE: int = 100

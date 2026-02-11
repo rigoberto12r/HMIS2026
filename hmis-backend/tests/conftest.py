@@ -38,6 +38,8 @@ from app.core.security import create_access_token, hash_password
 
 # Import SMART models so Base.metadata includes their tables
 import app.modules.smart.models  # noqa: F401
+# Import CDS models so Base.metadata includes their tables
+import app.modules.cds.models  # noqa: F401
 
 
 # =============================================
