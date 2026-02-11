@@ -29,6 +29,7 @@ export interface AppointmentSearchParams {
   date_to?: string;
   status?: string;
   patient_id?: string;
+  [key: string]: string | number | boolean | null | undefined;
 }
 
 export interface AppointmentCreateData {

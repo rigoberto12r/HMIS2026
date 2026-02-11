@@ -193,6 +193,19 @@ class PrescriptionService:
                 for a in drug_allergies
             ]
 
+        # CDS: drug interaction + duplicate therapy checks
+        from app.modules.cds.service import CDSService
+        cds_service = CDSService(self.db)
+        cds_result = await cds_service.check_medication(
+            patient_id=data.patient_id,
+            medication_name=data.medication_name,
+            product_id=data.product_id,
+        )
+        if cds_result.alerts:
+            alerts["cds_alerts"] = [a.model_dump() for a in cds_result.alerts]
+            alerts["has_critical"] = cds_result.has_critical
+            alerts["has_major"] = cds_result.has_major
+
         prescription = Prescription(
             encounter_id=data.encounter_id,
             patient_id=data.patient_id,

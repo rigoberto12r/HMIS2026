@@ -115,13 +115,9 @@ export function PatientTable({
     <DataTable
       columns={columns}
       data={patients}
+      keyExtractor={(patient) => patient.id}
       loading={loading}
-      pagination={{
-        page,
-        pageSize,
-        total,
-        onPageChange,
-      }}
+      pageSize={pageSize}
       emptyMessage="No se encontraron pacientes"
     />
   );

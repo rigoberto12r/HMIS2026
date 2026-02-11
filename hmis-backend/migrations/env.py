@@ -30,6 +30,7 @@ from app.modules.appointments.models import *  # noqa: F401,F403
 from app.modules.emr.models import *  # noqa: F401,F403
 from app.modules.billing.models import *  # noqa: F401,F403
 from app.modules.pharmacy.models import *  # noqa: F401,F403
+from app.modules.reports.models import *  # noqa: F401,F403
 
 logger = logging.getLogger("alembic.env")
 

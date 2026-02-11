@@ -34,11 +34,11 @@ def upgrade() -> None:
         sa.Column("category", sa.String(30), nullable=False),
         sa.Column("account_type", sa.String(50), nullable=False),
         sa.Column("parent_code", sa.String(20), nullable=True, index=True),
-        sa.Column("is_detail", sa.Boolean, server_default="true"),
+        sa.Column("is_detail", sa.Boolean, server_default=sa.text("true")),
         sa.Column("normal_balance", sa.String(10), server_default="'debit'"),
         sa.Column("currency", sa.String(3), server_default="'DOP'"),
         # BaseEntity
-        sa.Column("is_active", sa.Boolean, server_default="true", nullable=False),
+        sa.Column("is_active", sa.Boolean, server_default=sa.text("true"), nullable=False),
         sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_by", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column("updated_by", postgresql.UUID(as_uuid=True), nullable=True),
@@ -64,7 +64,7 @@ def upgrade() -> None:
         sa.Column("reversal_of", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column("posted_by", postgresql.UUID(as_uuid=True), nullable=True),
         # BaseEntity
-        sa.Column("is_active", sa.Boolean, server_default="true", nullable=False),
+        sa.Column("is_active", sa.Boolean, server_default=sa.text("true"), nullable=False),
         sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_by", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column("updated_by", postgresql.UUID(as_uuid=True), nullable=True),
@@ -110,7 +110,7 @@ def upgrade() -> None:
         sa.Column("country_code", sa.String(2), server_default="'DO'"),
         sa.Column("fiscal_response", postgresql.JSONB, nullable=True),
         # BaseEntity
-        sa.Column("is_active", sa.Boolean, server_default="true", nullable=False),
+        sa.Column("is_active", sa.Boolean, server_default=sa.text("true"), nullable=False),
         sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_by", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column("updated_by", postgresql.UUID(as_uuid=True), nullable=True),

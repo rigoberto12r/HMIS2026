@@ -45,8 +45,8 @@ function getRefreshToken(): string | null {
 }
 
 function getTenantId(): string | null {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem('hmis_tenant_id');
+  if (typeof window === 'undefined') return 'demo';
+  return localStorage.getItem('hmis_tenant_id') || 'demo';
 }
 
 function setTokens(accessToken: string, refreshToken: string): void {
@@ -126,10 +126,22 @@ async function handleResponse<T>(response: Response): Promise<T> {
       }
     }
 
+    // Pydantic 422 errors return detail as an array of objects
+    let detail: string | undefined;
+    if (typeof errorData.detail === 'string') {
+      detail = errorData.detail;
+    } else if (Array.isArray(errorData.detail)) {
+      detail = errorData.detail
+        .map((e: { msg?: string; loc?: string[] }) =>
+          e.msg ? `${e.loc?.slice(-1)[0] || 'campo'}: ${e.msg}` : String(e)
+        )
+        .join(', ');
+    }
+
     throw new ApiClientError({
-      message: (errorData.message as string) || (errorData.detail as string) || `Error ${response.status}`,
+      message: (errorData.message as string) || detail || `Error ${response.status}`,
       status: response.status,
-      detail: errorData.detail as string,
+      detail,
       errors: errorData.errors as Record<string, string[]>,
     });
   }
@@ -143,7 +155,6 @@ async function handleResponse<T>(response: Response): Promise<T> {
 
 function buildHeaders(customHeaders?: Record<string, string>): Record<string, string> {
   const token = getAuthToken();
-  const tenantId = getTenantId();
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -155,9 +166,7 @@ function buildHeaders(customHeaders?: Record<string, string>): Record<string, st
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  if (tenantId) {
-    headers['X-Tenant-ID'] = tenantId;
-  }
+  // Multi-tenancy disabled - using public schema directly
 
   return headers;
 }

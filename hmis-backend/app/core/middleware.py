@@ -7,14 +7,39 @@ import time
 import uuid
 from typing import Callable
 
+from sqlalchemy import text
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
 from app.core.config import settings
-from app.core.database import AsyncSessionLocal, current_tenant
+from app.core.database import AsyncSessionLocal, current_tenant, engine
 
 logger = logging.getLogger("hmis.audit")
+
+
+# Cache simple para schema_names por tenant_id (evita queries repetitivas)
+_tenant_schema_cache: dict[str, str] = {}
+
+
+async def get_schema_for_tenant(tenant_id: str) -> str | None:
+    """Resuelve el schema_name desde la tabla tenants."""
+    # Check cache first
+    if tenant_id in _tenant_schema_cache:
+        return _tenant_schema_cache[tenant_id]
+
+    # Query database
+    async with engine.begin() as conn:
+        result = await conn.execute(
+            text("SELECT schema_name FROM tenants WHERE tenant_id = :tid AND is_active = true"),
+            {"tid": tenant_id}
+        )
+        row = result.first()
+        if row:
+            schema_name = row[0]
+            _tenant_schema_cache[tenant_id] = schema_name
+            return schema_name
+    return None
 
 
 class TenantMiddleware(BaseHTTPMiddleware):
@@ -31,41 +56,9 @@ class TenantMiddleware(BaseHTTPMiddleware):
     EXCLUDED_PATHS = {"/health", "/api/docs", "/api/redoc", "/api/openapi.json", "/api/v1"}
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        # Rutas excluidas de tenancy (endpoints publicos)
-        if request.url.path in self.EXCLUDED_PATHS:
-            current_tenant.set(None)
-            return await call_next(request)
-
-        # Rutas de autenticacion no requieren tenant
-        if request.url.path.startswith("/api/v1/auth"):
-            current_tenant.set(None)
-            return await call_next(request)
-
-        tenant_id = None
-
-        # 1. Intentar desde header
-        tenant_id = request.headers.get(settings.TENANT_HEADER)
-
-        # 2. Intentar desde subdominio
-        if not tenant_id and settings.TENANT_SUBDOMAIN_ENABLED:
-            host = request.headers.get("host", "")
-            parts = host.split(".")
-            if len(parts) >= 3:
-                subdomain = parts[0]
-                if subdomain not in ("www", "api", "admin"):
-                    tenant_id = f"tenant_{subdomain}"
-
-        if not tenant_id:
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "detail": "Tenant no identificado. Proporcione el header X-Tenant-ID o use un subdominio valido."
-                },
-            )
-
-        # Establecer el tenant en el contexto de la request
-        current_tenant.set(tenant_id)
-
+        # SIMPLIFIED: Always use 'public' schema for single-tenant deployment
+        # Multi-tenancy disabled - all requests use the public schema
+        current_tenant.set("public")
         response = await call_next(request)
         return response
 

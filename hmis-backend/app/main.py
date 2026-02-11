@@ -37,6 +37,10 @@ from app.modules.admin.routes import router as admin_router
 from app.modules.portal.routes import router as portal_router
 from app.modules.reports.routes import router as reports_router
 from app.modules.reports.cqrs_routes import router as cqrs_reports_router
+from app.modules.fhir.routes import router as fhir_router
+from app.modules.ccda.routes import router as ccda_router
+from app.modules.smart.routes import router as smart_router, build_smart_configuration
+from app.modules.cds.routes import router as cds_router
 
 # Optional: Stripe payment routes (if stripe package is installed)
 try:
@@ -191,6 +195,18 @@ def create_app() -> FastAPI:
     app.include_router(portal_router, prefix="/api/v1/portal", tags=["Patient Portal"])
     app.include_router(reports_router, prefix="/api/v1/reports", tags=["Custom Reports"])
     app.include_router(cqrs_reports_router, prefix="/api/v1/cqrs/reports", tags=["CQRS Reports (Read Replica)"])
+    app.include_router(fhir_router, prefix="/api/v1/fhir", tags=["FHIR R4 Interoperability"])
+    app.include_router(ccda_router, prefix="/api/v1/ccda", tags=["C-CDA R2.1 Export"])
+    app.include_router(smart_router, prefix="/api/v1/smart", tags=["SMART on FHIR"])
+    app.include_router(cds_router, prefix="/api/v1/cds", tags=["Clinical Decision Support"])
+
+    # ------ SMART on FHIR Discovery (must be at root per spec) ------
+
+    @app.get("/.well-known/smart-configuration", tags=["SMART on FHIR"])
+    async def smart_configuration(request: Request):
+        """SMART on FHIR discovery document (public, no auth)."""
+        base_url = str(request.base_url).rstrip("/")
+        return JSONResponse(content=build_smart_configuration(base_url))
 
     # ------ Endpoints de sistema ------
 
@@ -252,6 +268,8 @@ def create_app() -> FastAPI:
                 "historia_clinica": "/api/v1/emr",
                 "facturacion": "/api/v1/billing",
                 "farmacia": "/api/v1/pharmacy",
+                "fhir_r4": "/api/v1/fhir",
+                "ccda_r21": "/api/v1/ccda",
             },
             "documentacion": "/api/docs",
         }

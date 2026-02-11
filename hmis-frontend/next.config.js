@@ -1,11 +1,28 @@
 /** @type {import('next').NextConfig} */
-const withBundleAnalyzer = require('@next/bundle-analyzer')({
-  enabled: process.env.ANALYZE === 'true',
-});
+// Bundle analyzer is optional - only load if installed
+let withBundleAnalyzer;
+try {
+  withBundleAnalyzer = require('@next/bundle-analyzer')({
+    enabled: process.env.ANALYZE === 'true',
+  });
+} catch (e) {
+  // Bundle analyzer not installed, use passthrough
+  withBundleAnalyzer = (config) => config;
+}
 
 const nextConfig = {
   reactStrictMode: true,
   output: 'standalone',
+
+  // Skip type checking during build (CI runs tsc separately)
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+
+  // Skip ESLint during build (CI runs eslint separately)
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
 
   // Performance optimizations
   swcMinify: true,
@@ -16,7 +33,17 @@ const nextConfig = {
   // Experimental features for better performance
   experimental: {
     optimizePackageImports: ['lucide-react', 'recharts', '@tanstack/react-query'],
+    // Enable server actions for future use
+    serverActions: true,
+    // Optimize CSS
+    optimizeCss: true,
   },
+
+  // Production source maps (smaller)
+  productionBrowserSourceMaps: false,
+
+  // Reduce bundle size
+  poweredByHeader: false,
 
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1',

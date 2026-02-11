@@ -44,6 +44,13 @@ from app.modules.pharmacy.service import (
     PurchaseOrderService,
     WarehouseService,
 )
+from app.modules.pharmacy.med_rec_schemas import (
+    MedRecComplete,
+    MedRecCreate,
+    MedRecResponse,
+    MedRecUpdateHomeMeds,
+)
+from app.modules.pharmacy.med_rec_service import MedicationReconciliationService
 from app.shared.schemas import MessageResponse, PaginatedResponse, PaginationParams
 
 router = APIRouter()
@@ -175,6 +182,30 @@ async def create_prescription(
     service = PrescriptionService(db)
     prescription = await service.create_prescription(data, prescribed_by=current_user.id)
     return PrescriptionResponse.model_validate(prescription)
+
+
+@router.get("/prescriptions", response_model=PaginatedResponse[PrescriptionResponse])
+async def list_prescriptions(
+    prescription_status: str | None = Query(default=None, alias="status"),
+    pagination: Annotated[PaginationParams, Depends()] = None,
+    current_user: User = Depends(require_permissions("prescriptions:read")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Listar prescripciones con filtro opcional por estado."""
+    if pagination is None:
+        pagination = PaginationParams()
+    service = PrescriptionService(db)
+    prescriptions, total = await service.list_prescriptions(
+        status=prescription_status,
+        offset=pagination.offset,
+        limit=pagination.page_size,
+    )
+    return PaginatedResponse.create(
+        items=[PrescriptionResponse.model_validate(p) for p in prescriptions],
+        total=total,
+        page=pagination.page,
+        page_size=pagination.page_size,
+    )
 
 
 @router.get("/prescriptions/{prescription_id}", response_model=PrescriptionResponse)
@@ -448,3 +479,108 @@ async def get_controlled_substance_balance(
     service = ControlledSubstanceAuditService(db)
     balance = await service.get_balance(product_id)
     return {"product_id": str(product_id), "balance": balance}
+
+
+# =============================================
+# Reconciliacion de Medicamentos
+# =============================================
+
+@router.post(
+    "/medication-reconciliation",
+    response_model=MedRecResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def start_medication_reconciliation(
+    data: MedRecCreate,
+    current_user: User = Depends(require_roles("medico", "admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Iniciar reconciliacion de medicamentos para un encuentro."""
+    service = MedicationReconciliationService(db)
+    med_rec = await service.start_reconciliation(data, started_by=current_user.id)
+    return MedRecResponse.model_validate(med_rec)
+
+
+@router.get(
+    "/medication-reconciliation/{med_rec_id}",
+    response_model=MedRecResponse,
+)
+async def get_medication_reconciliation(
+    med_rec_id: uuid.UUID,
+    current_user: User = Depends(require_roles("medico", "admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Obtener reconciliacion de medicamentos por ID."""
+    service = MedicationReconciliationService(db)
+    med_rec = await service.get_reconciliation(med_rec_id)
+    return MedRecResponse.model_validate(med_rec)
+
+
+@router.get(
+    "/medication-reconciliation/encounter/{encounter_id}",
+    response_model=MedRecResponse,
+)
+async def get_medication_reconciliation_by_encounter(
+    encounter_id: uuid.UUID,
+    current_user: User = Depends(require_roles("medico", "admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Obtener reconciliacion de medicamentos por encounter."""
+    service = MedicationReconciliationService(db)
+    med_rec = await service.get_by_encounter(encounter_id)
+    if not med_rec:
+        raise HTTPException(
+            status_code=404,
+            detail="No se encontro reconciliacion para este encuentro",
+        )
+    return MedRecResponse.model_validate(med_rec)
+
+
+@router.put(
+    "/medication-reconciliation/{med_rec_id}/home-medications",
+    response_model=MedRecResponse,
+)
+async def update_home_medications(
+    med_rec_id: uuid.UUID,
+    data: MedRecUpdateHomeMeds,
+    current_user: User = Depends(require_roles("medico", "admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Actualizar medicamentos del hogar reportados por el paciente."""
+    service = MedicationReconciliationService(db)
+    med_rec = await service.update_home_medications(med_rec_id, data.home_medications)
+    return MedRecResponse.model_validate(med_rec)
+
+
+@router.put(
+    "/medication-reconciliation/{med_rec_id}/complete",
+    response_model=MedRecResponse,
+)
+async def complete_medication_reconciliation(
+    med_rec_id: uuid.UUID,
+    data: MedRecComplete,
+    current_user: User = Depends(require_roles("medico", "admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Completar reconciliacion con decisiones sobre medicamentos."""
+    service = MedicationReconciliationService(db)
+    med_rec = await service.complete_reconciliation(
+        med_rec_id, data, reconciled_by=current_user.id
+    )
+    return MedRecResponse.model_validate(med_rec)
+
+
+@router.get(
+    "/medication-reconciliation/patient/{patient_id}",
+    response_model=list[MedRecResponse],
+)
+async def list_patient_reconciliations(
+    patient_id: uuid.UUID,
+    limit: int = Query(default=50, ge=1, le=200),
+    current_user: User = Depends(require_roles("medico", "admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Historial de reconciliaciones de un paciente."""
+    service = MedicationReconciliationService(db)
+    records = await service.list_by_patient(patient_id, limit=limit)
+    return [MedRecResponse.model_validate(r) for r in records]

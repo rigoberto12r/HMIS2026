@@ -144,8 +144,8 @@ export function DataTable<T>({
       )}
 
       {/* Table */}
-      <div className="overflow-x-auto rounded-lg border border-neutral-200">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto rounded-lg border border-neutral-200 -webkit-overflow-scrolling-touch">
+        <table className="w-full text-sm min-w-[640px]">
           <thead className={cn('bg-neutral-50', stickyHeader && 'sticky top-0 z-10')}>
             <tr>
               {columns.map((col) => (
@@ -222,12 +222,12 @@ export function DataTable<T>({
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-xs text-neutral-500">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+          <p className="text-xs text-neutral-500 order-2 sm:order-1">
             Mostrando {(currentPage - 1) * pageSize + 1} a{' '}
             {Math.min(currentPage * pageSize, sortedData.length)} de {sortedData.length} registros
           </p>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 order-1 sm:order-2">
             <Button
               variant="outline"
               size="sm"

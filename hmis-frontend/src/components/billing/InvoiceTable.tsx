@@ -4,18 +4,7 @@ import { DataTable, type Column } from '@/components/ui/data-table';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Download, CreditCard, FileText } from 'lucide-react';
-
-interface Invoice {
-  id: string;
-  invoice_number: string;
-  fiscal_number: string | null;
-  patient_id: string;
-  grand_total: number;
-  currency: string;
-  status: string;
-  created_at: string;
-  customer_name: string | null;
-}
+import { type Invoice } from '@/hooks/useInvoices';
 
 interface InvoiceTableProps {
   invoices: Invoice[];

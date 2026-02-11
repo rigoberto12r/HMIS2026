@@ -151,3 +151,39 @@ class PatientService:
         await self.db.flush()
         return policy
 
+    async def get_stats(self) -> dict:
+        """
+        Obtiene estadisticas de pacientes del tenant actual.
+        - Total de pacientes activos
+        - Pacientes nuevos este mes
+        - Pacientes con status activo
+        """
+        # Total de pacientes activos (no borrados)
+        total_stmt = select(func.count(Patient.id)).where(Patient.is_active == True)
+        total_result = await self.db.execute(total_stmt)
+        total_patients = total_result.scalar() or 0
+
+        # Pacientes nuevos este mes
+        now = datetime.now(timezone.utc)
+        start_of_month = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
+        new_month_stmt = select(func.count(Patient.id)).where(
+            Patient.is_active == True,
+            Patient.created_at >= start_of_month,
+        )
+        new_month_result = await self.db.execute(new_month_stmt)
+        new_this_month = new_month_result.scalar() or 0
+
+        # Pacientes con status activo
+        active_stmt = select(func.count(Patient.id)).where(
+            Patient.is_active == True,
+            Patient.status == "active",
+        )
+        active_result = await self.db.execute(active_stmt)
+        active_patients = active_result.scalar() or 0
+
+        return {
+            "total_patients": total_patients,
+            "new_this_month": new_this_month,
+            "active_patients": active_patients,
+        }
+

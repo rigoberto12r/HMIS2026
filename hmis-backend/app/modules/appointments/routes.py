@@ -18,6 +18,7 @@ from app.modules.appointments.schemas import (
     AppointmentListResponse,
     AppointmentReschedule,
     AppointmentResponse,
+    AppointmentStatsResponse,
     AppointmentStatusUpdate,
     AvailableSlot,
     ProviderCreate,
@@ -176,6 +177,23 @@ async def list_appointments(
         page=pagination.page,
         page_size=pagination.page_size,
     )
+
+
+@router.get("/stats", response_model=AppointmentStatsResponse)
+async def get_appointment_stats(
+    date_from: date | None = Query(default=None, description="Fecha inicial (YYYY-MM-DD)"),
+    date_to: date | None = Query(default=None, description="Fecha final (YYYY-MM-DD)"),
+    current_user: User = Depends(require_permissions("appointments:read")),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Obtener estadisticas de citas.
+    Retorna total de citas y conteo por status (programadas, completadas, canceladas, no asistió).
+    Opcionalmente filtrable por rango de fechas.
+    """
+    service = AppointmentService(db)
+    stats = await service.get_stats(date_from=date_from, date_to=date_to)
+    return AppointmentStatsResponse(**stats)
 
 
 @router.get("/{appointment_id}", response_model=AppointmentResponse)

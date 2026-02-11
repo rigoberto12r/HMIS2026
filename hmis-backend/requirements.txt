@@ -45,3 +45,10 @@ sendgrid>=6.11.0
 apscheduler>=3.10.4
 # Payment Gateway
 stripe>=7.0.0
+# FHIR R4 Interoperability
+fhir.resources>=6.5.0
+# SMART on FHIR (OAuth2, RS256 key management)
+authlib>=1.3.0
+cryptography>=42.0.0
+# C-CDA R2.1 Export
+lxml>=5.1.0

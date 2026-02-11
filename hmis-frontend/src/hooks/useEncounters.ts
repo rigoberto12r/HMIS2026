@@ -55,14 +55,15 @@ export interface EncounterSearchParams {
   encounter_type?: string;
   date_from?: string;
   date_to?: string;
+  [key: string]: string | number | boolean | null | undefined;
 }
 
 export interface EncounterCreateData {
   patient_id: string;
-  encounter_type: 'outpatient' | 'inpatient' | 'emergency' | 'telemedicine';
-  reason: string;
+  provider_id: string;
+  encounter_type: string;
   chief_complaint?: string;
-  provider_name?: string;
+  appointment_id?: string;
 }
 
 /**
@@ -112,13 +113,18 @@ export function useCreateEncounter() {
 
 /**
  * Hook to update SOAP note for an encounter.
+ * Backend: POST /emr/notes with ClinicalNoteCreate schema
  */
 export function useUpdateSOAPNote() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ encounterId, soapNote }: { encounterId: string; soapNote: SOAPNote }) => {
-      const response = await api.patch<Encounter>(`/emr/encounters/${encounterId}/soap`, soapNote);
+      const response = await api.post('/emr/notes', {
+        encounter_id: encounterId,
+        note_type: 'soap',
+        content_json: soapNote,
+      });
       return response;
     },
     onSuccess: (_, variables) => {
@@ -129,6 +135,7 @@ export function useUpdateSOAPNote() {
 
 /**
  * Hook to add a diagnosis to an encounter.
+ * Backend: POST /emr/diagnoses with DiagnosisCreate schema
  */
 export function useAddDiagnosis() {
   const queryClient = useQueryClient();
@@ -145,10 +152,11 @@ export function useAddDiagnosis() {
       description: string;
       type: 'primary' | 'secondary';
     }) => {
-      const response = await api.post<Diagnosis>(`/emr/encounters/${encounterId}/diagnoses`, {
-        code,
+      const response = await api.post<Diagnosis>('/emr/diagnoses', {
+        encounter_id: encounterId,
+        icd10_code: code,
         description,
-        type,
+        diagnosis_type: type === 'primary' ? 'principal' : 'secondary',
       });
       return response;
     },
@@ -160,6 +168,7 @@ export function useAddDiagnosis() {
 
 /**
  * Hook to create an order (lab, imaging, medication, etc.).
+ * Backend: POST /emr/orders with MedicalOrderCreate schema
  */
 export function useCreateOrder() {
   const queryClient = useQueryClient();
@@ -167,19 +176,23 @@ export function useCreateOrder() {
   return useMutation({
     mutationFn: async ({
       encounterId,
+      patientId,
       order_type,
       description,
       notes,
     }: {
       encounterId: string;
+      patientId: string;
       order_type: Order['order_type'];
       description: string;
       notes?: string;
     }) => {
-      const response = await api.post<Order>(`/emr/encounters/${encounterId}/orders`, {
+      const response = await api.post<Order>('/emr/orders', {
+        encounter_id: encounterId,
+        patient_id: patientId,
         order_type,
-        description,
-        notes,
+        details_json: { description, notes },
+        clinical_indication: notes,
       });
       return response;
     },

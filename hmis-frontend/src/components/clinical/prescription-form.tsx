@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Card, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input, Select, Textarea } from '@/components/ui/input';
@@ -12,7 +12,12 @@ import {
   AlertTriangle,
   Send,
   Search,
+  ShieldCheck,
+  Loader2,
 } from 'lucide-react';
+import { CDSAlertModal } from '@/components/clinical/cds-alert-modal';
+import { useCDSOverride, type CDSAlert, type CDSCheckResponse } from '@/hooks/useCDS';
+import { api } from '@/lib/api';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -76,11 +81,19 @@ function createEmptyItem(): PrescriptionItem {
 // ─── Component ──────────────────────────────────────────
 
 interface PrescriptionFormProps {
+  patientId?: string;
   onSubmit?: (items: PrescriptionItem[]) => void;
 }
 
-export function PrescriptionForm({ onSubmit }: PrescriptionFormProps) {
+export function PrescriptionForm({ patientId, onSubmit }: PrescriptionFormProps) {
   const [items, setItems] = useState<PrescriptionItem[]>([createEmptyItem()]);
+  const [isChecking, setIsChecking] = useState(false);
+  const [cdsAlerts, setCdsAlerts] = useState<CDSAlert[]>([]);
+  const [cdsModalOpen, setCdsModalOpen] = useState(false);
+  const [pendingMedName, setPendingMedName] = useState('');
+  const [pendingItems, setPendingItems] = useState<PrescriptionItem[]>([]);
+
+  const overrideMutation = useCDSOverride();
 
   function updateItem(id: string, field: keyof PrescriptionItem, value: string | boolean) {
     setItems((prev) =>
@@ -95,6 +108,81 @@ export function PrescriptionForm({ onSubmit }: PrescriptionFormProps) {
   function removeItem(id: string) {
     if (items.length === 1) return;
     setItems((prev) => prev.filter((item) => item.id !== id));
+  }
+
+  const handleSubmit = useCallback(async () => {
+    if (!patientId) {
+      onSubmit?.(items);
+      return;
+    }
+
+    setIsChecking(true);
+
+    try {
+      // Run CDS check for each medication
+      const allAlerts: CDSAlert[] = [];
+      let firstMedName = '';
+
+      for (const item of items) {
+        if (!item.medication.trim()) continue;
+
+        const result = await api.post<CDSCheckResponse>('/cds/check', {
+          patient_id: patientId,
+          medication_name: item.medication,
+        });
+
+        if (result.alerts.length > 0) {
+          allAlerts.push(...result.alerts);
+          if (!firstMedName) firstMedName = item.medication;
+        }
+      }
+
+      if (allAlerts.length > 0) {
+        setCdsAlerts(allAlerts);
+        setPendingMedName(
+          items.length === 1
+            ? items[0].medication
+            : `${items.length} medicamentos`
+        );
+        setPendingItems(items);
+        setCdsModalOpen(true);
+      } else {
+        onSubmit?.(items);
+      }
+    } catch {
+      // CDS check failed, proceed without blocking
+      onSubmit?.(items);
+    } finally {
+      setIsChecking(false);
+    }
+  }, [items, patientId, onSubmit]);
+
+  function handleOverride(reason: string) {
+    // Record override for each critical/major alert
+    const alertsToOverride = cdsAlerts.filter(
+      (a) => a.severity === 'critical' || a.severity === 'major'
+    );
+
+    for (const alert of alertsToOverride) {
+      overrideMutation.mutate({
+        prescription_id: '00000000-0000-0000-0000-000000000000',
+        patient_id: patientId!,
+        alert_type: alert.alert_type,
+        alert_severity: alert.severity,
+        alert_summary: alert.summary,
+        override_reason: reason || 'Clinician override',
+      });
+    }
+
+    setCdsModalOpen(false);
+    setCdsAlerts([]);
+    onSubmit?.(pendingItems);
+  }
+
+  function handleCancelPrescription() {
+    setCdsModalOpen(false);
+    setCdsAlerts([]);
+    setPendingItems([]);
   }
 
   return (
@@ -132,21 +220,37 @@ export function PrescriptionForm({ onSubmit }: PrescriptionFormProps) {
           action={
             <Button
               size="sm"
-              leftIcon={<Send className="w-4 h-4" />}
-              onClick={() => onSubmit?.(items)}
+              leftIcon={
+                isChecking ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4" />
+                )
+              }
+              onClick={handleSubmit}
+              disabled={isChecking}
             >
-              Enviar a Farmacia
+              {isChecking ? 'Verificando...' : 'Enviar a Farmacia'}
             </Button>
           }
         />
 
-        {/* Alert */}
-        <div className="flex items-center gap-2 px-3 py-2 mb-4 bg-red-50 rounded-lg border border-red-200">
-          <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
-          <span className="text-xs text-red-700 font-medium">
-            Alerta: Paciente alergica a Penicilina. Verificar interacciones.
-          </span>
-        </div>
+        {/* CDS safety indicator */}
+        {patientId ? (
+          <div className="flex items-center gap-2 px-3 py-2 mb-4 bg-blue-50 rounded-lg border border-blue-200">
+            <ShieldCheck className="w-4 h-4 text-blue-500 flex-shrink-0" />
+            <span className="text-xs text-blue-700 font-medium">
+              Verificacion de seguridad activa: interacciones, alergias y terapia duplicada.
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 px-3 py-2 mb-4 bg-red-50 rounded-lg border border-red-200">
+            <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
+            <span className="text-xs text-red-700 font-medium">
+              Alerta: Sin ID de paciente. Verificacion de interacciones no disponible.
+            </span>
+          </div>
+        )}
 
         <div className="space-y-6">
           {items.map((item, index) => (
@@ -256,6 +360,17 @@ export function PrescriptionForm({ onSubmit }: PrescriptionFormProps) {
           Agregar Otro Medicamento
         </Button>
       </Card>
+
+      {/* CDS Alert Modal */}
+      <CDSAlertModal
+        isOpen={cdsModalOpen}
+        onClose={() => setCdsModalOpen(false)}
+        alerts={cdsAlerts}
+        medicationName={pendingMedName}
+        onOverride={handleOverride}
+        onCancel={handleCancelPrescription}
+        isOverriding={overrideMutation.isPending}
+      />
     </div>
   );
 }

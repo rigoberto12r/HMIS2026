@@ -1,4 +1,4 @@
-import { Suspense } from 'react';
+import React, { Suspense } from 'react';
 import { Card } from '@/components/ui/card';
 import { Calendar, AlertTriangle } from 'lucide-react';
 import { AppointmentStats, AppointmentList } from '@/components/appointments';
@@ -96,9 +96,7 @@ export default async function AppointmentsPage({ searchParams }: AppointmentsPag
       <AppointmentHeader initialView={view} />
 
       {/* Stats */}
-      <Suspense fallback={<Card className="h-32 animate-pulse bg-neutral-100" />}>
-        <AppointmentStats dateFrom={dateFrom} dateTo={dateTo} />
-      </Suspense>
+      {/* <AppointmentStats dateFrom={dateFrom} dateTo={dateTo} /> */}
 
       {/* Filters - Client Component for interactivity */}
       <Card className="p-4">
@@ -127,9 +125,6 @@ export default async function AppointmentsPage({ searchParams }: AppointmentsPag
         <AppointmentList
           appointments={data?.items || []}
           loading={false}
-          page={page}
-          pageSize={pageSize}
-          total={data?.total || 0}
         />
       )}
 

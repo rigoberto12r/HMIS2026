@@ -4,35 +4,20 @@ import { useState } from 'react';
 import { Card, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
-import { useInvoices, useBillingStats } from '@/hooks/useInvoices';
+import { useInvoices, useBillingStats, type Invoice } from '@/hooks/useInvoices';
 import { InvoiceStats, InvoiceTable } from '@/components/billing';
 
 /**
  * Billing Page - Refactored with React Query
- * 
+ *
  * Before: 664 lines with manual fetching
  * After: ~150 lines with hooks and extracted components
- * 
+ *
  * Benefits:
  * - Automatic caching and refetching
  * - Cleaner component separation
  * - Reusable invoice components
  */
-
-interface Invoice {
-  id: string;
-  invoice_number: string;
-  fiscal_number: string | null;
-  patient_id: string;
-  grand_total: number;
-  currency: string;
-  status: string;
-  created_at: string;
-  customer_name: string | null;
-  subtotal: number;
-  tax_total: number;
-  discount_total: number;
-}
 
 export default function BillingPage() {
   const [page, setPage] = useState(1);
@@ -118,9 +103,7 @@ export default function BillingPage() {
 
       {/* Invoices Table */}
       <Card>
-        <CardHeader>
-          <h2 className="text-lg font-semibold">Facturas Recientes</h2>
-        </CardHeader>
+        <CardHeader title="Facturas Recientes" />
         <InvoiceTable
           invoices={invoices}
           loading={isLoading}

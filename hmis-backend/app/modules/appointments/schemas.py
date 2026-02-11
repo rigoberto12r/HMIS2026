@@ -186,3 +186,12 @@ class WaitingListResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class AppointmentStatsResponse(BaseModel):
+    """Estadisticas de citas."""
+    total: int = Field(description="Total de citas")
+    scheduled: int = Field(description="Citas programadas")
+    completed: int = Field(description="Citas completadas")
+    cancelled: int = Field(description="Citas canceladas")
+    no_show: int = Field(description="Pacientes que no asistieron")
