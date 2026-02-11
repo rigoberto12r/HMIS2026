@@ -12,8 +12,11 @@ interface Props {
   loading?: boolean;
 }
 
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('es-DO', {
+function formatDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return '---';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '---';
+  return d.toLocaleDateString('es-DO', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -70,7 +73,7 @@ export function BillingTab({ invoices, loading }: Props) {
                     {formatCurrency(invoice.grand_total, invoice.currency)}
                   </td>
                   <td className="px-4 py-3 text-neutral-500 text-xs">
-                    {formatDate(invoice.due_date || '')}
+                    {formatDate(invoice.due_date)}
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge status={invoice.status} />

@@ -28,28 +28,28 @@ export function PharmacyStats() {
         title="Total Productos"
         value={stats.total_products}
         icon={Package}
-        trend="neutral"
+        changeType="neutral"
       />
       <KpiCard
         title="Recetas Pendientes"
         value={stats.pending_prescriptions}
         icon={Pill}
-        trend={stats.pending_prescriptions > 10 ? 'down' : 'neutral'}
-        color="blue"
+        changeType={stats.pending_prescriptions > 10 ? 'negative' : 'neutral'}
+        iconColor="bg-blue-50 text-blue-500"
       />
       <KpiCard
         title="Alertas Stock Bajo"
         value={stats.low_stock_alerts}
         icon={AlertTriangle}
-        trend={stats.low_stock_alerts > 0 ? 'down' : 'up'}
-        color={stats.low_stock_alerts > 0 ? 'red' : 'green'}
+        changeType={stats.low_stock_alerts > 0 ? 'negative' : 'positive'}
+        variant={stats.low_stock_alerts > 0 ? 'danger' : 'success'}
       />
       <KpiCard
         title="Próximos a Vencer"
         value={stats.expiring_soon_count}
         icon={Clock}
-        trend={stats.expiring_soon_count > 0 ? 'down' : 'neutral'}
-        color={stats.expiring_soon_count > 5 ? 'orange' : 'neutral'}
+        changeType={stats.expiring_soon_count > 0 ? 'negative' : 'neutral'}
+        variant={stats.expiring_soon_count > 5 ? 'warning' : 'default'}
       />
     </div>
   );

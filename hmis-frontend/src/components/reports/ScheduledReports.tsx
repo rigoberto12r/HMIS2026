@@ -66,8 +66,8 @@ export function ScheduledReports({ reportDefinitions }: Props) {
   const loadScheduledReports = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/reports/scheduled');
-      setScheduledReports(response.data);
+      const data = await api.get<ScheduledReport[]>('/reports/scheduled');
+      setScheduledReports(data);
     } catch (error) {
       console.error('Failed to load scheduled reports:', error);
     } finally {
@@ -249,7 +249,7 @@ export function ScheduledReports({ reportDefinitions }: Props) {
                     {schedule.last_status && (
                       <Badge
                         variant={
-                          schedule.last_status === 'success' ? 'success' : 'error'
+                          schedule.last_status === 'success' ? 'success' : 'danger'
                         }
                       >
                         Last: {schedule.last_status}

@@ -106,14 +106,15 @@ export function useCreateInvoice() {
 }
 
 /**
- * Hook to update invoice status.
+ * Hook to void an invoice.
+ * Backend: POST /billing/invoices/{id}/void with InvoiceVoidRequest schema
  */
-export function useUpdateInvoiceStatus() {
+export function useVoidInvoice() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: Invoice['status'] }) => {
-      const response = await api.patch<Invoice>(`/billing/invoices/${id}/status`, { status });
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      const response = await api.post<Invoice>(`/billing/invoices/${id}/void`, { reason });
       return response;
     },
     onSuccess: (_, variables) => {
@@ -125,13 +126,15 @@ export function useUpdateInvoiceStatus() {
 
 /**
  * Hook to record a payment for an invoice.
+ * Backend: POST /billing/payments with PaymentCreate schema
  */
 export function useRecordPayment() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ invoiceId, amount, method }: { invoiceId: string; amount: number; method: string }) => {
-      const response = await api.post<Invoice>(`/billing/invoices/${invoiceId}/payments`, {
+      const response = await api.post('/billing/payments', {
+        invoice_id: invoiceId,
         amount,
         payment_method: method,
       });

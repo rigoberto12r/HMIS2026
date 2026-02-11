@@ -176,9 +176,11 @@ export default function PortalDashboardPage() {
                   <p className="text-xs text-neutral-400 mt-2">{formatDate(alert.created_at)}</p>
                 </div>
                 {alert.action_url && (
-                  <Button size="sm" variant="outline" href={alert.action_url}>
-                    Ver detalles
-                  </Button>
+                  <Link href={alert.action_url}>
+                    <Button size="sm" variant="outline">
+                      Ver detalles
+                    </Button>
+                  </Link>
                 )}
               </div>
             </Card>

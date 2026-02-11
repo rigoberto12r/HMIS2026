@@ -78,7 +78,7 @@ export function DashboardKPIs({
       <KpiCard
         title="Cuentas por Cobrar"
         value={formatRD(cuentasPorCobrar)}
-        change={arReport ? `${arReport.items.length} pendientes` : 'Sin datos'}
+        change={arReport ? `${arReport.items?.length ?? 0} pendientes` : 'Sin datos'}
         changeType={cuentasPorCobrar > 0 ? 'negative' : 'neutral'}
         icon={DollarSign}
         iconColor="bg-orange-50 text-orange-500"

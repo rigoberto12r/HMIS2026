@@ -34,11 +34,11 @@ export default function BillingPage() {
   const total = data?.total || 0;
 
   // Calculate KPIs
-  const totalFacturado = invoices.reduce((sum, inv) => sum + inv.grand_total, 0);
+  const totalFacturado = invoices.reduce((sum, inv) => sum + (inv.grand_total || 0), 0);
   const totalCobrado = invoices
     .filter((inv) => inv.status === 'paid')
-    .reduce((sum, inv) => sum + inv.grand_total, 0);
-  const pendienteCobro = stats?.total_pending || (totalFacturado - totalCobrado);
+    .reduce((sum, inv) => sum + (inv.grand_total || 0), 0);
+  const pendienteCobro = stats?.total_pending ?? (totalFacturado - totalCobrado);
   const facturasVencidas = invoices.filter((inv) => 
     inv.status === 'issued' && inv.created_at < new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
   ).length;

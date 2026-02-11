@@ -65,7 +65,8 @@ export default function PaymentModal({
         `/api/v1/payments/stripe/customers/patient/${invoice.patient_id}`,
         {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
+            Authorization: `Bearer ${localStorage.getItem('hmis_access_token')}`,
+            'X-Tenant-ID': localStorage.getItem('hmis_tenant_id') || 'demo',
           },
         }
       );
@@ -95,7 +96,8 @@ export default function PaymentModal({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('hmis_access_token')}`,
+          'X-Tenant-ID': localStorage.getItem('hmis_tenant_id') || 'demo',
         },
         body: JSON.stringify({
           invoice_id: invoice.id,
@@ -148,7 +150,8 @@ export default function PaymentModal({
         {
           method: 'DELETE',
           headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
+            Authorization: `Bearer ${localStorage.getItem('hmis_access_token')}`,
+            'X-Tenant-ID': localStorage.getItem('hmis_tenant_id') || 'demo',
           },
         }
       );

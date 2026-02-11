@@ -46,7 +46,7 @@ export function PatientStats() {
     },
     {
       label: 'Con Seguro',
-      value: stats?.with_insurance || 0,
+      value: (stats as Record<string, number>)?.with_insurance || 0,
       icon: Shield,
       color: 'text-purple-600',
       bgColor: 'bg-purple-50',

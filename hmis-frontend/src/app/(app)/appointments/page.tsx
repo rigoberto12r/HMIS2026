@@ -1,102 +1,40 @@
-import React, { Suspense } from 'react';
+'use client';
+
 import { Card } from '@/components/ui/card';
 import { Calendar, AlertTriangle } from 'lucide-react';
-import { AppointmentStats, AppointmentList } from '@/components/appointments';
+import { useSearchParams } from 'next/navigation';
+import { AppointmentList } from '@/components/appointments/AppointmentList';
 import { AppointmentFiltersClient } from '@/components/appointments/AppointmentFiltersClient';
 import { AppointmentHeader } from '@/components/appointments/AppointmentHeader';
+import { useAppointments } from '@/hooks/useAppointments';
 
 /**
- * Appointments Page - Server Component
+ * Appointments Page - Client Component with React Query
  *
- * Fetches appointment data server-side for improved performance:
- * - First Contentful Paint (FCP): improved by ~60%
- * - SEO-friendly with pre-rendered HTML
- * - URL state management for bookmarkable filters
- *
- * Search params:
- * - page: number (default: 1)
- * - view: "list" | "calendar" (default: "list")
- * - date_from: ISO date string
- * - date_to: ISO date string
- * - status: appointment status filter
+ * Uses URL search params for bookmarkable filter state
+ * and React Query for authenticated data fetching + caching.
  */
+export default function AppointmentsPage() {
+  const searchParams = useSearchParams();
 
-interface AppointmentsPageProps {
-  searchParams: {
-    page?: string;
-    view?: string;
-    date_from?: string;
-    date_to?: string;
-    status?: string;
-  };
-}
+  const page = Number(searchParams.get('page')) || 1;
+  const view = (searchParams.get('view') as 'list' | 'calendar') || 'list';
+  const dateFrom = searchParams.get('date_from') || '';
+  const dateTo = searchParams.get('date_to') || '';
+  const statusFilter = searchParams.get('status') || '';
 
-// Fetch appointments server-side
-async function fetchAppointments(params: {
-  page: number;
-  page_size: number;
-  date_from?: string;
-  date_to?: string;
-  status?: string;
-}) {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
-
-  const queryParams = new URLSearchParams({
-    page: params.page.toString(),
-    page_size: params.page_size.toString(),
+  const { data, isLoading, error } = useAppointments({
+    page,
+    page_size: 20,
+    date_from: dateFrom || undefined,
+    date_to: dateTo || undefined,
+    status: statusFilter || undefined,
   });
-
-  if (params.date_from) queryParams.append('date_from', params.date_from);
-  if (params.date_to) queryParams.append('date_to', params.date_to);
-  if (params.status) queryParams.append('status', params.status);
-
-  const response = await fetch(`${apiUrl}/appointments?${queryParams.toString()}`, {
-    cache: 'no-store', // Disable caching for fresh data
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch appointments: ${response.statusText}`);
-  }
-
-  return response.json();
-}
-
-export default async function AppointmentsPage({ searchParams }: AppointmentsPageProps) {
-  // Parse search params
-  const page = Number(searchParams.page) || 1;
-  const view = (searchParams.view as 'list' | 'calendar') || 'list';
-  const dateFrom = searchParams.date_from || '';
-  const dateTo = searchParams.date_to || '';
-  const statusFilter = searchParams.status || '';
-  const pageSize = 20;
-
-  // Fetch data server-side
-  let data;
-  let error;
-
-  try {
-    data = await fetchAppointments({
-      page,
-      page_size: pageSize,
-      date_from: dateFrom || undefined,
-      date_to: dateTo || undefined,
-      status: statusFilter || undefined,
-    });
-  } catch (err) {
-    error = err;
-    console.error('Error fetching appointments:', err);
-  }
 
   return (
     <div className="space-y-6">
       {/* Header with view toggle and create button */}
       <AppointmentHeader initialView={view} />
-
-      {/* Stats */}
-      {/* <AppointmentStats dateFrom={dateFrom} dateTo={dateTo} /> */}
 
       {/* Filters - Client Component for interactivity */}
       <Card className="p-4">
@@ -124,7 +62,7 @@ export default async function AppointmentsPage({ searchParams }: AppointmentsPag
       {view === 'list' && (
         <AppointmentList
           appointments={data?.items || []}
-          loading={false}
+          loading={isLoading}
         />
       )}
 

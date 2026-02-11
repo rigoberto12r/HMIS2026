@@ -47,12 +47,12 @@ export function ReportViewer({ executionId, onClose }: Props) {
   const loadExecutionResult = async () => {
     setLoading(true);
     try {
-      const response = await api.get(`/reports/executions/${executionId}`);
-      setResult(response.data);
+      const data = await api.get<ReportResult>(`/reports/executions/${executionId}`);
+      setResult(data);
 
       // Initialize visible columns
-      if (response.data.columns) {
-        setVisibleColumns(new Set(response.data.columns));
+      if (data.columns) {
+        setVisibleColumns(new Set(data.columns));
       }
     } catch (error) {
       console.error('Failed to load execution result:', error);
@@ -120,7 +120,7 @@ export function ReportViewer({ executionId, onClose }: Props) {
     .filter((col) => visibleColumns.has(col))
     .map((col) => ({
       key: col,
-      label: col.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()),
+      header: col.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()),
       render: (row: any) => {
         const value = row[col];
         if (value === null || value === undefined) return '-';
@@ -137,7 +137,7 @@ export function ReportViewer({ executionId, onClose }: Props) {
       isOpen={true}
       onClose={onClose}
       title="Report Results"
-      size="fullscreen"
+      size="full"
     >
       <div className="space-y-4">
         {/* Execution Info */}
@@ -150,7 +150,7 @@ export function ReportViewer({ executionId, onClose }: Props) {
                   execution.status === 'completed'
                     ? 'success'
                     : execution.status === 'failed'
-                    ? 'error'
+                    ? 'danger'
                     : 'default'
                 }
               >
@@ -243,7 +243,7 @@ export function ReportViewer({ executionId, onClose }: Props) {
             <DataTable
               data={filteredData}
               columns={tableColumns}
-              pagination={true}
+              keyExtractor={(row: any) => row.id ?? String(Math.random())}
               pageSize={50}
             />
           </div>
