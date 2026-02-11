@@ -31,12 +31,8 @@ interface Encounter {
   encounter_type: string;
   status: string;
   chief_complaint: string | null;
-  disposition: string | null;
-  patient_name: string | null;
-  doctor_name: string | null;
   start_datetime: string;
-  created_at: string;
-  completed_at: string | null;
+  created_at?: string;
 }
 
 // ─── Status & Type Config ───────────────────────────────
@@ -128,6 +124,7 @@ export default function EMRPage() {
 
   const { data: patientResults, isFetching: searchingPatients } = usePatients(
     { query: debouncedSearch || undefined, page_size: 8 },
+    { enabled: showNewModal && debouncedSearch.length >= 2 },
   );
 
   const patientOptions = useMemo(() => {
@@ -168,7 +165,7 @@ export default function EMRPage() {
   const kpis = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
     return {
-      today: encounters.filter((e) => e.created_at?.startsWith(today)).length,
+      today: encounters.filter((e) => e.start_datetime?.startsWith(today)).length,
       inProgress: encounters.filter((e) => e.status === 'in_progress').length,
       completed: encounters.filter((e) => e.status === 'completed').length,
     };
@@ -215,25 +212,17 @@ export default function EMRPage() {
       sortable: true,
       width: '160px',
       render: (row) => (
-        <span className="font-mono text-xs">{formatDate(row.start_datetime || row.created_at)}</span>
+        <span className="font-mono text-xs">{formatDate(row.start_datetime)}</span>
       ),
     },
     {
-      key: 'patient_name',
+      key: 'patient_id',
       header: 'Paciente',
       sortable: true,
       render: (row) => (
-        <span className="font-medium text-neutral-900">
-          {row.patient_name || '---'}
+        <span className="font-mono text-xs text-neutral-600">
+          {row.patient_id?.slice(0, 8)}...
         </span>
-      ),
-    },
-    {
-      key: 'doctor_name',
-      header: 'Proveedor',
-      sortable: true,
-      render: (row) => (
-        <span className="text-neutral-600">{row.doctor_name || '---'}</span>
       ),
     },
     {

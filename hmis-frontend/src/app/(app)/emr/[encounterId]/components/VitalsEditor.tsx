@@ -25,6 +25,8 @@ const vitalsFields = [
     icon: Activity,
     placeholder: '120',
     step: 1,
+    min: 40,
+    max: 300,
   },
   {
     key: 'blood_pressure_diastolic' as const,
@@ -33,6 +35,8 @@ const vitalsFields = [
     icon: Activity,
     placeholder: '80',
     step: 1,
+    min: 20,
+    max: 200,
   },
   {
     key: 'heart_rate' as const,
@@ -41,6 +45,8 @@ const vitalsFields = [
     icon: Heart,
     placeholder: '72',
     step: 1,
+    min: 20,
+    max: 300,
   },
   {
     key: 'temperature' as const,
@@ -49,6 +55,8 @@ const vitalsFields = [
     icon: Thermometer,
     placeholder: '36.5',
     step: 0.1,
+    min: 25,
+    max: 45,
   },
   {
     key: 'respiratory_rate' as const,
@@ -57,6 +65,8 @@ const vitalsFields = [
     icon: Wind,
     placeholder: '16',
     step: 1,
+    min: 0,
+    max: 80,
   },
   {
     key: 'oxygen_saturation' as const,
@@ -65,6 +75,8 @@ const vitalsFields = [
     icon: Droplets,
     placeholder: '98',
     step: 1,
+    min: 0,
+    max: 100,
   },
   {
     key: 'weight_kg' as const,
@@ -72,7 +84,9 @@ const vitalsFields = [
     unit: 'kg',
     icon: Scale,
     placeholder: '70',
-    step: 1,
+    step: 0.1,
+    min: 0.1,
+    max: 500,
   },
   {
     key: 'height_cm' as const,
@@ -81,6 +95,8 @@ const vitalsFields = [
     icon: Ruler,
     placeholder: '170',
     step: 1,
+    min: 10,
+    max: 300,
   },
 ];
 
@@ -141,6 +157,8 @@ export function VitalsEditor({
                     <input
                       type="number"
                       step={field.step}
+                      min={field.min}
+                      max={field.max}
                       value={form[field.key]}
                       onChange={(e) =>
                         onChange({

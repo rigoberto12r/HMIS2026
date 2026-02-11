@@ -118,6 +118,12 @@ export default function EncounterDetailPage() {
   // Handlers
   const handleSaveNote = async () => {
     setError(null);
+    const hasContent = soapForm.subjective.trim() || soapForm.objective.trim() ||
+      soapForm.assessment.trim() || soapForm.plan.trim();
+    if (!hasContent) {
+      setError('Debe completar al menos un campo de la nota SOAP.');
+      return;
+    }
     try {
       await saveNoteMutation.mutateAsync({ encounterId, data: soapForm });
       showSuccess('Nota SOAP guardada exitosamente');
@@ -140,6 +146,11 @@ export default function EncounterDetailPage() {
   const handleSaveVitals = async () => {
     if (!encounter) return;
     setError(null);
+    const hasValue = Object.values(vitalsForm).some((v) => v.trim() !== '');
+    if (!hasValue) {
+      setError('Debe ingresar al menos un signo vital.');
+      return;
+    }
     try {
       await saveVitalsMutation.mutateAsync({
         patientId: encounter.patient_id,

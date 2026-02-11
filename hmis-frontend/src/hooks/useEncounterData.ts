@@ -192,7 +192,7 @@ export function useCompleteEncounter() {
 
   return useMutation({
     mutationFn: ({ encounterId, disposition }: { encounterId: string; disposition: string }) =>
-      api.post(`/emr/encounters/${encounterId}/complete`, { disposition }),
+      api.post(`/emr/encounters/${encounterId}/complete?disposition=${encodeURIComponent(disposition)}`),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['encounter', variables.encounterId] });
     },

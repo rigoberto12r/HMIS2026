@@ -57,13 +57,17 @@ export interface PatientCreateData {
 /**
  * Hook to fetch paginated and filtered patients list.
  */
-export function usePatients(params: PatientSearchParams = {}) {
+export function usePatients(
+  params: PatientSearchParams = {},
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: ['patients', params],
     queryFn: async () => {
       const response = await api.get<PatientsResponse>('/patients/search', params);
       return response;
     },
+    ...(options?.enabled !== undefined ? { enabled: options.enabled } : {}),
   });
 }
 
