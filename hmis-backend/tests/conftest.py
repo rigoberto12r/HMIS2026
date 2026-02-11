@@ -40,6 +40,8 @@ from app.core.security import create_access_token, hash_password
 import app.modules.smart.models  # noqa: F401
 # Import CDS models so Base.metadata includes their tables
 import app.modules.cds.models  # noqa: F401
+# Import Medication Reconciliation models so Base.metadata includes their tables
+import app.modules.pharmacy.med_rec_models  # noqa: F401
 
 
 # =============================================

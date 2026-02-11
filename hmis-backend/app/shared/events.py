@@ -182,3 +182,7 @@ STOCK_EXPIRED = "stock.expiration_alert"
 # Clinical Decision Support
 CDS_ALERT_GENERATED = "cds.alert_generated"
 CDS_ALERT_OVERRIDDEN = "cds.alert_overridden"
+
+# Medication Reconciliation
+MED_REC_STARTED = "med_rec.started"
+MED_REC_COMPLETED = "med_rec.completed"
