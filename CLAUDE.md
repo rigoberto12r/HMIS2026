@@ -126,6 +126,8 @@ app/modules/{module_name}/
 - `billing` - Invoicing, payments, insurance claims, fiscal compliance
 - `pharmacy` - Prescriptions, dispensation, inventory management
 - `admin` - Tenant management, system configuration
+- `fhir` - FHIR R4 interoperability API (Patient, Encounter, Condition, Observation)
+- `ccda` - C-CDA R2.1 export for clinical document exchange (CCD generation)
 
 **Shared utilities**:
 - `app/core/` - Configuration, database, cache, security, middleware, metrics, rate limiting
