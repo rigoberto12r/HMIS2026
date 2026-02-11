@@ -9,3 +9,4 @@ export { VitalsEditor } from './VitalsEditor';
 export { DiagnosesSection } from './DiagnosesSection';
 export { AllergiesSection } from './AllergiesSection';
 export { CloseEncounterForm } from './CloseEncounterForm';
+export { MedRecSection } from './MedRecSection';

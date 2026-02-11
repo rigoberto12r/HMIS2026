@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input, Select, Textarea } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
 import { api } from '@/lib/api';
+import { SmartAppsModal } from '@/components/settings/SmartAppsModal';
 import {
   Building2,
   Users,
@@ -60,6 +61,7 @@ interface SystemHealth {
 
 export default function SettingsPage() {
   const [showHospitalModal, setShowHospitalModal] = useState(false);
+  const [showSmartAppsModal, setShowSmartAppsModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -168,6 +170,16 @@ export default function SettingsPage() {
       iconBg: 'bg-red-50',
       iconColor: 'text-red-500',
     },
+    {
+      id: 'smart-apps',
+      title: 'Aplicaciones SMART on FHIR',
+      description: 'Registra y administra apps externas autorizadas via OAuth2',
+      icon: Plug,
+      iconBg: 'bg-indigo-50',
+      iconColor: 'text-indigo-500',
+      badge: 'OAuth2',
+      badgeVariant: 'primary',
+    },
   ];
 
   const generalSettings = [
@@ -182,6 +194,8 @@ export default function SettingsPage() {
   function handleSectionClick(sectionId: string) {
     if (sectionId === 'hospital') {
       setShowHospitalModal(true);
+    } else if (sectionId === 'smart-apps') {
+      setShowSmartAppsModal(true);
     }
     // Las demas secciones se expandiran en futuras versiones
   }
@@ -409,6 +423,9 @@ export default function SettingsPage() {
           />
         </div>
       </Modal>
+
+      {/* SMART Apps Modal */}
+      <SmartAppsModal isOpen={showSmartAppsModal} onClose={() => setShowSmartAppsModal(false)} />
     </div>
   );
 }

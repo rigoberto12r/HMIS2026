@@ -3,7 +3,10 @@
  * Displays patient avatar, name, MRN, and quick info badges
  */
 
-import { Edit, Droplets, AlertCircle } from 'lucide-react';
+'use client';
+
+import { useState } from 'react';
+import { Edit, Droplets, AlertCircle, Download } from 'lucide-react';
 import { StatusBadge, Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { Patient, Allergy } from '@/hooks/usePatientDetail';
@@ -30,7 +33,37 @@ function formatGender(gender: string): string {
   return gender;
 }
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+
 export function PatientHeader({ patient, allergies }: Props) {
+  const [exporting, setExporting] = useState(false);
+
+  const handleExportCCD = async () => {
+    setExporting(true);
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('hmis_access_token') : null;
+      const res = await fetch(`${API_BASE_URL}/ccda/patients/${patient.id}/ccd?download=true`, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (!res.ok) throw new Error('Error al exportar CCD');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `CCD_${patient.last_name}_${patient.first_name}.xml`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Error al exportar CCD');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="bg-white rounded-xl border border-neutral-200 p-5 shadow-card">
       <div className="flex flex-col sm:flex-row items-start gap-4">
@@ -77,6 +110,15 @@ export function PatientHeader({ patient, allergies }: Props) {
 
         {/* Actions */}
         <div className="flex gap-2 flex-shrink-0">
+          <Button
+            variant="outline"
+            size="sm"
+            leftIcon={<Download className="w-4 h-4" />}
+            onClick={handleExportCCD}
+            disabled={exporting}
+          >
+            {exporting ? 'Exportando...' : 'Exportar CCD'}
+          </Button>
           <Button variant="outline" size="sm" leftIcon={<Edit className="w-4 h-4" />}>
             Editar
           </Button>
