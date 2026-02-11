@@ -63,6 +63,12 @@ npm start
 # Code quality
 npm run lint
 npm run type-check
+
+# Testing
+npm test                                # Jest tests
+npm run test:watch                      # Jest watch mode
+npm run test:coverage                   # Jest with coverage
+npm run build:analyze                   # Bundle analyzer
 ```
 
 ### Docker (Full Stack)
@@ -88,6 +94,8 @@ docker compose -f docker-compose.prod.yml up -d
 
 **Note**: The frontend uses `Dockerfile.dev` for development (faster builds). Both frontend and backend have `.dockerignore` files to exclude large directories from build context.
 
+**Docker services**: postgres, redis, meilisearch, jaeger (tracing UI at :16686), minio (S3-compatible at :9000), backend, frontend.
+
 ## Architecture
 
 ### Multi-Tenancy Pattern
@@ -95,16 +103,14 @@ docker compose -f docker-compose.prod.yml up -d
 The system uses **schema-per-tenant** isolation in PostgreSQL:
 
 - Each hospital/clinic gets a separate schema (e.g., `tenant_hospital_a`, `tenant_hospital_b`)
-- The `TenantMiddleware` (hmis-backend/app/core/middleware.py) extracts tenant from:
-  - `X-Tenant-ID` header
-  - Subdomain (if `TENANT_SUBDOMAIN_ENABLED=true`)
+- The `TenantMiddleware` (app/core/middleware.py) extracts tenant from `X-Tenant-ID` header or subdomain (`TENANT_SUBDOMAIN_ENABLED=true`)
 - Database sessions automatically set `search_path` to the tenant schema via `current_tenant` ContextVar
 - All models inherit from `BaseEntity` which includes UUID PKs, soft deletes, timestamps, and audit fields
 
 **Key files**:
-- hmis-backend/app/core/database.py - Database setup with `current_tenant` ContextVar
-- hmis-backend/app/core/middleware.py - Tenant extraction and context setting
-- hmis-backend/app/shared/base_models.py - Reusable model mixins
+- app/core/database.py - Database setup with `current_tenant` ContextVar
+- app/core/middleware.py - `TenantMiddleware` + `AuditMiddleware`
+- app/shared/base_models.py - Reusable model mixins
 
 ### Backend Module Structure
 
@@ -115,24 +121,66 @@ app/modules/{module_name}/
   ├── models.py       # SQLAlchemy models (inherit from BaseEntity)
   ├── schemas.py      # Pydantic schemas for request/response validation
   ├── routes.py       # FastAPI router with endpoint definitions
-  └── service.py      # Business logic (optional, for complex modules)
+  ├── service.py      # Business logic (optional, for complex modules)
+  └── repository.py   # Data access layer (patients, pharmacy, emr, cds)
 ```
 
-**Modules**:
+**Modules** (14 total):
 - `auth` - Authentication, JWT tokens, user management
 - `patients` - Patient registry, demographics
 - `appointments` - Scheduling, check-in/out
 - `emr` - Electronic Medical Records (encounters, diagnoses, orders, clinical notes)
 - `billing` - Invoicing, payments, insurance claims, fiscal compliance
-- `pharmacy` - Prescriptions, dispensation, inventory management
+- `pharmacy` - Prescriptions, dispensation, inventory, medication reconciliation (`med_rec_*.py`)
 - `admin` - Tenant management, system configuration
 - `fhir` - FHIR R4 interoperability API (Patient, Encounter, Condition, Observation)
-- `ccda` - C-CDA R2.1 export for clinical document exchange (CCD generation)
+- `ccda` - C-CDA R2.1 export for clinical document exchange
+- `smart` - SMART on FHIR OAuth2 (RS256 JWKS, PKCE, client management)
+- `cds` - Clinical Decision Support (drug interactions, allergy alerts)
+- `portal` - Patient portal (self-service)
+- `reports` - Custom reporting with CQRS (`cqrs_routes.py`)
 
-**Shared utilities**:
-- `app/core/` - Configuration, database, cache, security, middleware, metrics, rate limiting
-- `app/shared/` - Base models, event system, common schemas
-- `app/integrations/` - External service integrations
+**Shared layers**:
+- `app/core/` - Config, database, cache, security, middleware, metrics, rate limiting, tracing, secrets
+- `app/shared/` - Base models, event system, domain exceptions, repository base class
+- `app/cqrs/` - CQRS implementation (queries, commands, projections for AR aging/diagnosis trends/revenue)
+- `app/tasks/` - Background task scheduler (registered in app lifespan)
+- `app/integrations/` - Email (SendGrid), payments (Stripe), fiscal (NCF/CFDI/DGII), PDF, FHIR mapper
+
+### Key Backend Patterns
+
+**Repository pattern** — Services use repositories, not raw SQLAlchemy:
+```python
+# app/shared/repository.py (base class)
+# Implemented in: patients, pharmacy, emr, cds
+class PatientService:
+    def __init__(self, db: AsyncSession):
+        self.repo = PatientRepository(Patient, db)
+    async def get_patient(self, id):
+        return await self.repo.get_with_insurance(id)
+```
+
+**Domain exceptions** — Use `app/shared/exceptions.py`, not `ValueError`:
+```python
+from app.shared.exceptions import ConflictError, NotFoundError, ValidationError
+# Global handler in app/main.py maps these to HTTP status codes automatically
+raise ConflictError("Patient already exists", details={"document": doc})
+```
+
+**Event system with DLQ** — `app/shared/events.py`:
+- Redis Streams for event persistence
+- 3 retry attempts with exponential backoff
+- Failed events go to Dead Letter Queue (`events:dlq`)
+
+**Dual authentication**:
+- Internal auth: HS256 JWT (`app/core/security.py`)
+- SMART on FHIR: RS256 JWT with JWKS (`app/modules/smart/`)
+- FHIR routes accept both via `get_fhir_auth()` dependency, returning `FHIRAuthContext`
+
+**CQRS projections** (`app/cqrs/`):
+- AR Aging, Diagnosis Trends, Revenue metrics
+- Cached in Redis with tenant-scoped keys
+- Read replica support via `READ_DATABASE_URL`
 
 ### Frontend Architecture
 
@@ -151,32 +199,40 @@ src/
   │   │   └── settings/
   │   └── auth/               # Public auth routes (login)
   ├── components/
-  │   ├── ui/                 # Reusable UI components (buttons, inputs, etc.)
-  │   └── clinical/           # Domain-specific components
+  │   ├── ui/                 # Reusable UI components
+  │   ├── clinical/           # Domain-specific (CDS alerts, prescription form)
+  │   ├── reports/            # Report builder, viewer, templates
+  │   ├── payments/           # Payment form, success/error
+  │   └── settings/           # SMART apps modal
+  ├── hooks/                  # React Query hooks (12+: usePatients, useAppointments, useEncounters, useInvoices, useDashboard, useCDS, useMedRec, useSmartApps, etc.)
   └── lib/
-      └── api.ts              # API client with auth, tenant headers, token refresh
+      ├── api.ts              # Main API client (auth + tenant headers, token refresh)
+      ├── portal-api.ts       # Patient portal API client
+      ├── auth.ts             # Auth utilities
+      ├── i18n.ts             # Internationalization
+      ├── prefetch.ts         # Data prefetching
+      └── performance.ts      # Performance monitoring
 ```
 
 **State management**:
-- `@tanstack/react-query` for server state (fetching, caching)
+- `@tanstack/react-query` for server state (fetching, caching) — always use hooks, never manual useEffect
 - `zustand` for global client state (user session, UI state)
 
-**API client** (src/lib/api.ts):
-- Automatically adds `Authorization: Bearer {token}` header
-- Automatically adds `X-Tenant-ID` header from localStorage
-- Handles 401 responses with token refresh
-- Type-safe wrapper around fetch
+**Performance**: Dynamic imports for heavy components (`soap-note-editor.dynamic.tsx`, `report-viewer.dynamic.tsx`, `payment-form.dynamic.tsx`). Next.js config enables `optimizePackageImports`, `serverActions`, `optimizeCss`, SWC minification, image optimization (AVIF/WebP).
 
 ### Testing Strategy
 
-**Backend**:
-- Tests use SQLite in-memory database (hmis-backend/tests/conftest.py)
-- Redis is mocked with AsyncMock
-- FastAPI lifespan is replaced with no-op for tests
-- Fixtures provide: `db_session`, `client`, `auth_token`, `test_user`, `test_tenant`
+**Backend** (hmis-backend/tests/):
+- SQLite async in-memory DB (`sqlite+aiosqlite`) — JSONB compiled as JSON for compatibility
+- Redis mocked with `AsyncMock`
+- FastAPI lifespan replaced with no-op (no real PostgreSQL/Redis)
+- Fixtures: `db_session`, `client`, `auth_headers`, `admin_user`, `medico_user`, `sample_patient`, `sample_encounter`, `sample_vital_signs`
+- Coverage threshold: 70% (enforced in CI)
 
-**Frontend**:
-- No test setup currently (ready for Jest/Vitest + React Testing Library)
+**Frontend** (Jest 29.7 + React Testing Library):
+- Tests in `src/lib/__tests__/`, `src/components/__tests__/`
+- Coverage threshold: 70%
+- Cypress config exists for E2E (`cypress.config.ts`)
 
 ### Authentication Flow
 
@@ -184,7 +240,7 @@ src/
 2. Backend returns `access_token` (30min) + `refresh_token` (7 days)
 3. Frontend stores in localStorage: `hmis_access_token`, `hmis_refresh_token`, `hmis_tenant_id`
 4. All API requests include `Authorization: Bearer {access_token}` + `X-Tenant-ID: {tenant_id}`
-5. On 401, frontend calls `/api/v1/auth/refresh` with refresh token, gets new access token
+5. On 401, frontend calls `/api/v1/auth/refresh` with refresh token
 6. JWT payload includes: `user_id`, `tenant_id`, `role`, `exp`
 
 ### Database Models Convention
@@ -201,70 +257,74 @@ Use `SoftDeleteMixin` methods for deletes instead of actual deletion.
 
 **Success** (200/201):
 ```json
-{
-  "id": "uuid",
-  "field": "value",
-  ...
-}
+{ "id": "uuid", "field": "value" }
 ```
 
 **List** (200):
 ```json
-{
-  "items": [...],
-  "total": 100,
-  "page": 1,
-  "page_size": 20
-}
+{ "items": [...], "total": 100, "page": 1, "page_size": 20 }
 ```
 
 **Error** (4xx/5xx):
 ```json
-{
-  "detail": "Error message"
-}
+{ "detail": "Error message" }
 ```
+
+### Observability
+
+**OpenTelemetry** (`app/core/tracing.py`):
+- Instruments FastAPI, SQLAlchemy, Redis
+- OTLP exporter to Jaeger/Tempo (UI at localhost:16686)
+- Disabled in dev/test, enabled in staging/production
+- Config: `OTLP_ENDPOINT`, `OTLP_INSECURE`, `TRACING_EXCLUDED_URLS`
+
+**Rate limiting** (`app/core/rate_limit.py`):
+- Redis ZSET sliding window (distributed, cluster-safe)
+- General: 100 req/min, Login: 5 req/min
+- Falls back to allowing requests if Redis is down
+
+**Health checks**: `/health`, `/health/live`, `/health/ready`, `/metrics` (Prometheus)
 
 ### Environment Variables
 
 Critical variables (see .env.example):
 - `SECRET_KEY`, `JWT_SECRET_KEY` - Must be changed in production
-- `DATABASE_URL` - PostgreSQL connection string
+- `DATABASE_URL`, `READ_DATABASE_URL` (optional CQRS read replica)
 - `REDIS_URL` - Redis connection string
 - `ENVIRONMENT` - `development` | `staging` | `production`
-- `CORS_ORIGINS` - Comma-separated allowed origins for CORS
+- `CORS_ORIGINS` - Comma-separated allowed origins
 - `TENANT_HEADER` - Header name for tenant ID (default: `X-Tenant-ID`)
+- `USE_SECRETS_MANAGER` - Enable AWS Secrets Manager in production (`app/core/secrets.py`)
+- `SMART_RSA_PRIVATE_KEY_PATH` - RSA key for SMART on FHIR (auto-generates if missing)
+- `DRUGBANK_API_URL`, `DRUGBANK_API_KEY`, `CDS_USE_EXTERNAL_API` - CDS drug interaction source
 
-### Deployment
+### Quick Local Start
 
-See DEPLOYMENT.md for detailed instructions.
-
-**Quick local start**:
 ```bash
 docker compose up -d
 docker compose exec backend alembic upgrade head
 docker compose exec backend python -m scripts.seed_data
-# Access: http://localhost:3000 (frontend), http://localhost:8000/api/docs (API docs)
+# Frontend: http://localhost:3000 | API docs: http://localhost:8000/api/docs
 # Default admin: admin@hmis.app / Admin2026!
+# Seed creates 6 roles: admin, medico, enfermera, recepcion, farmaceutico, facturacion
 ```
 
-### Health Checks
+### CI/CD
 
-- `/health` - Basic health check
-- `/health/live` - Liveness probe (process alive)
-- `/health/ready` - Readiness probe (DB + Redis connected)
-- `/metrics` - Prometheus metrics
+**CI** (`.github/workflows/ci.yml`): backend-lint, backend-test (PostgreSQL+Redis services), backend-build, frontend-lint, frontend-test, frontend-build, security-scan (pip-audit, Trivy, CodeQL, Gitleaks), infra-validate (Terraform, Kubeval, Checkov).
 
-### Rate Limiting
+**Deploy** (`.github/workflows/deploy.yml`): OIDC auth to AWS, multi-stage Docker → ECR, EKS deployment with kubectl, Alembic migration job, Slack notification, Git release tags.
 
-Applied via `RateLimitMiddleware` using Redis:
-- General endpoints: 100 req/min
-- Login endpoint: 5 req/min
-- Configurable via `RATE_LIMIT_*` env vars
+### Infrastructure
+
+- `hmis-infra/terraform/` - AWS infrastructure (EKS, ECR, RDS, ElastiCache)
+- `hmis-infra/kubernetes/` - K8s base manifests + monitoring (ServiceMonitor)
+- `k8s/` - Standalone K8s manifests (deployments, HPA, StatefulSets, backup CronJob)
 
 ### Fiscal Compliance
 
 For Latin American markets, the billing module includes:
 - NCFE (Comprobantes Fiscales Electronicos) for Dominican Republic
+- DGII reports (607, 608, 609)
 - Electronic invoicing with XML signatures
 - Tax calculations per jurisdiction
