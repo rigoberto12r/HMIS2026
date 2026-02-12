@@ -18,6 +18,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { toast } from 'sonner';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -96,7 +97,7 @@ export function ReportTemplates({ onExecutionComplete }: Props) {
       setParameters({});
     } catch (error: any) {
       console.error('Failed to execute report:', error);
-      alert(error.response?.data?.detail || 'Failed to execute report');
+      toast.error(error.response?.data?.detail || 'Failed to execute report');
     } finally {
       setExecuting(false);
     }

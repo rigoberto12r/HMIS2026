@@ -41,23 +41,23 @@ export const LazyCharts = {
 // Lazy load heavy domain components
 export const LazyComponents = {
   // Reports module (heavy - report builder + templates)
-  ReportBuilder: dynamic(() => import('@/components/reports/ReportBuilder'), {
+  ReportBuilder: dynamic(() => import('@/components/reports/ReportBuilder').then(mod => ({ default: mod.ReportBuilder })), {
     loading: () => <ComponentLoading message="Cargando constructor de reportes..." />,
     ssr: false,
   }),
 
-  ReportViewer: dynamic(() => import('@/components/reports/ReportViewer'), {
+  ReportViewer: dynamic(() => import('@/components/reports/ReportViewer').then(mod => ({ default: mod.ReportViewer })), {
     loading: () => <ComponentLoading message="Cargando visor de reportes..." />,
     ssr: false,
   }),
 
-  ScheduledReports: dynamic(() => import('@/components/reports/ScheduledReports'), {
+  ScheduledReports: dynamic(() => import('@/components/reports/ScheduledReports').then(mod => ({ default: mod.ScheduledReports })), {
     loading: () => <ComponentLoading message="Cargando reportes programados..." />,
     ssr: false,
   }),
 
   // Clinical module (SOAP note editor with rich text)
-  SOAPNoteEditor: dynamic(() => import('@/components/clinical/soap-note-editor'), {
+  SOAPNoteEditor: dynamic(() => import('@/components/clinical/soap-note-editor').then(mod => ({ default: mod.SOAPNoteEditor })), {
     loading: () => <ComponentLoading message="Cargando editor clínico..." />,
     ssr: false,
   }),

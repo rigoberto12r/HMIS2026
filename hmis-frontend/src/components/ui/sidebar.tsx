@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import {
   Users,
@@ -55,25 +56,25 @@ export function Sidebar() {
   const sidebarContent = (
     <div className="flex flex-col h-full">
       {/* Logo / Brand */}
-      <div className="flex items-center justify-between h-16 px-4 border-b border-neutral-200/60">
+      <div className="flex items-center justify-between h-16 px-4 border-b border-white/10">
         <Link href="/dashboard" className="flex items-center gap-2.5 min-w-0">
-          <div className="w-9 h-9 rounded-lg bg-primary-500 flex items-center justify-center flex-shrink-0">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-primary-500/25">
             <Heart className="w-5 h-5 text-white" />
           </div>
           {!collapsed && (
             <div className="min-w-0">
-              <span className="text-base font-bold text-neutral-900 block truncate">HMIS</span>
-              <span className="text-2xs text-neutral-400 block">Gestion Hospitalaria</span>
+              <span className="text-base font-bold text-white block truncate">HMIS</span>
+              <span className="text-2xs text-white/40 block">Gestion Hospitalaria</span>
             </div>
           )}
         </Link>
         {/* Collapse button (desktop) */}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="hidden lg:flex w-7 h-7 items-center justify-center rounded-md hover:bg-neutral-100 text-neutral-400"
+          className="hidden lg:flex w-7 h-7 items-center justify-center rounded-md hover:bg-white/10 text-white/40 transition-colors"
           aria-label={collapsed ? 'Expandir barra lateral' : 'Colapsar barra lateral'}
         >
-          <ChevronLeft className={cn('w-4 h-4 transition-transform', collapsed && 'rotate-180')} />
+          <ChevronLeft className={cn('w-4 h-4 transition-transform duration-200', collapsed && 'rotate-180')} />
         </button>
       </div>
 
@@ -103,19 +104,31 @@ export function Sidebar() {
       </nav>
 
       {/* User info / Logout */}
-      <div className="border-t border-neutral-200/60 p-3">
+      <div className="border-t border-white/10 p-3">
         {user && !collapsed && (
           <div className="px-3 py-2 mb-2">
-            <p className="text-sm font-medium text-neutral-800 truncate">
-              {user.first_name} {user.last_name}
-            </p>
-            <p className="text-xs text-neutral-400 truncate">{user.email}</p>
+            <div className="flex items-center gap-2.5">
+              <div className="relative">
+                <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+                  <span className="text-xs font-semibold text-white">
+                    {user.first_name?.[0]}{user.last_name?.[0]}
+                  </span>
+                </div>
+                <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-accent-400 rounded-full border-2 border-indigo-900" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-white truncate">
+                  {user.first_name} {user.last_name}
+                </p>
+                <p className="text-xs text-white/40 truncate">{user.email}</p>
+              </div>
+            </div>
           </div>
         )}
         <button
           onClick={logout}
           className={cn(
-            'nav-link w-full text-neutral-500 hover:text-medical-red hover:bg-red-50',
+            'nav-link w-full text-white/40 hover:text-red-300 hover:bg-red-500/10',
             collapsed && 'justify-center px-2'
           )}
           title={collapsed ? 'Cerrar sesion' : undefined}
@@ -132,46 +145,57 @@ export function Sidebar() {
       {/* Mobile toggle button */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="lg:hidden fixed top-3 left-3 z-40 w-11 h-11 flex items-center justify-center rounded-lg bg-white shadow-md text-neutral-600 touch-manipulation"
+        className="lg:hidden fixed top-3 left-3 z-40 w-11 h-11 flex items-center justify-center rounded-lg bg-white dark:bg-surface-100 shadow-md text-surface-600 touch-manipulation"
         aria-label="Abrir menu"
       >
         <Menu className="w-5 h-5" />
       </button>
 
       {/* Mobile overlay */}
-      {mobileOpen && (
-        <div
-          className="lg:hidden fixed inset-0 z-40 bg-black/40"
-          onClick={() => setMobileOpen(false)}
-          aria-hidden="true"
-        />
-      )}
+      <AnimatePresence>
+        {mobileOpen && (
+          <motion.div
+            className="lg:hidden fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setMobileOpen(false)}
+            aria-hidden="true"
+          />
+        )}
+      </AnimatePresence>
 
       {/* Mobile sidebar */}
-      <aside
-        className={cn(
-          'lg:hidden fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-sidebar',
-          'transform transition-transform duration-200 ease-in-out',
-          mobileOpen ? 'translate-x-0' : '-translate-x-full'
+      <AnimatePresence>
+        {mobileOpen && (
+          <motion.aside
+            className="lg:hidden fixed inset-y-0 left-0 z-50 w-64"
+            style={{ background: 'var(--gradient-sidebar)' }}
+            initial={{ x: '-100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '-100%' }}
+            transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+          >
+            <button
+              onClick={() => setMobileOpen(false)}
+              className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-md hover:bg-white/10 text-white/50"
+              aria-label="Cerrar menu"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            {sidebarContent}
+          </motion.aside>
         )}
-      >
-        <button
-          onClick={() => setMobileOpen(false)}
-          className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-md hover:bg-neutral-100 text-neutral-400"
-          aria-label="Cerrar menu"
-        >
-          <X className="w-5 h-5" />
-        </button>
-        {sidebarContent}
-      </aside>
+      </AnimatePresence>
 
       {/* Desktop sidebar */}
       <aside
         className={cn(
-          'hidden lg:flex flex-col fixed inset-y-0 left-0 z-30 bg-white border-r border-neutral-200 shadow-sidebar',
+          'hidden lg:flex flex-col fixed inset-y-0 left-0 z-30',
           'transition-[width] duration-200 ease-in-out',
           collapsed ? 'w-[68px]' : 'w-64'
         )}
+        style={{ background: 'var(--gradient-sidebar)' }}
       >
         {sidebarContent}
       </aside>

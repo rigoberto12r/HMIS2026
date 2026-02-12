@@ -286,7 +286,7 @@ export default function ReportsPage() {
                                 execution.status === 'completed'
                                   ? 'success'
                                   : execution.status === 'failed'
-                                  ? 'error'
+                                  ? 'danger'
                                   : 'default'
                               }
                             >

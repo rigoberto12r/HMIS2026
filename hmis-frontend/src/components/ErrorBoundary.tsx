@@ -110,10 +110,10 @@ export class ErrorBoundary extends Component<Props, State> {
                 )}
 
                 <div className="flex gap-3">
-                  <Button onClick={this.handleReset} variant="primary" icon={RefreshCw}>
+                  <Button onClick={this.handleReset} variant="primary" leftIcon={<RefreshCw className="w-4 h-4" />}>
                     Intentar de nuevo
                   </Button>
-                  <Button onClick={this.handleGoHome} variant="secondary" icon={Home}>
+                  <Button onClick={this.handleGoHome} variant="secondary" leftIcon={<Home className="w-4 h-4" />}>
                     Ir al inicio
                   </Button>
                 </div>

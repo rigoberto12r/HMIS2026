@@ -22,6 +22,7 @@ from app.modules.appointments.schemas import (
     AppointmentReschedule,
     AppointmentStatusUpdate,
     AvailableSlot,
+    ScheduleBlockCreate,
     ScheduleTemplateCreate,
 )
 from app.shared.events import (
@@ -86,6 +87,70 @@ class ScheduleService:
         self.db.add(template)
         await self.db.flush()
         return template
+
+    async def list_templates(
+        self, provider_id: uuid.UUID | None = None
+    ) -> list[ScheduleTemplate]:
+        """Lista plantillas de horario, opcionalmente filtradas por proveedor."""
+        stmt = select(ScheduleTemplate).where(ScheduleTemplate.is_active == True)
+        if provider_id:
+            stmt = stmt.where(ScheduleTemplate.provider_id == provider_id)
+        stmt = stmt.order_by(ScheduleTemplate.provider_id, ScheduleTemplate.day_of_week)
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_template(self, template_id: uuid.UUID) -> ScheduleTemplate | None:
+        stmt = select(ScheduleTemplate).where(
+            ScheduleTemplate.id == template_id, ScheduleTemplate.is_active == True
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def update_template(self, template_id: uuid.UUID, data: dict) -> ScheduleTemplate | None:
+        template = await self.get_template(template_id)
+        if not template:
+            return None
+        for field, value in data.items():
+            if value is not None:
+                setattr(template, field, value)
+        await self.db.flush()
+        return template
+
+    async def delete_template(self, template_id: uuid.UUID) -> bool:
+        template = await self.get_template(template_id)
+        if not template:
+            return False
+        template.is_active = False
+        await self.db.flush()
+        return True
+
+    async def create_block(self, data: ScheduleBlockCreate) -> ScheduleBlock:
+        block = ScheduleBlock(**data.model_dump())
+        self.db.add(block)
+        await self.db.flush()
+        return block
+
+    async def list_blocks(
+        self, provider_id: uuid.UUID | None = None
+    ) -> list[ScheduleBlock]:
+        stmt = select(ScheduleBlock).where(ScheduleBlock.is_active == True)
+        if provider_id:
+            stmt = stmt.where(ScheduleBlock.provider_id == provider_id)
+        stmt = stmt.order_by(ScheduleBlock.start_datetime.desc())
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def delete_block(self, block_id: uuid.UUID) -> bool:
+        stmt = select(ScheduleBlock).where(
+            ScheduleBlock.id == block_id, ScheduleBlock.is_active == True
+        )
+        result = await self.db.execute(stmt)
+        block = result.scalar_one_or_none()
+        if not block:
+            return False
+        block.is_active = False
+        await self.db.flush()
+        return True
 
     async def get_available_slots(
         self,

@@ -53,6 +53,8 @@ from app.modules.pharmacy.med_rec_schemas import (
 from app.modules.pharmacy.med_rec_service import MedicationReconciliationService
 from app.shared.schemas import MessageResponse, PaginatedResponse, PaginationParams
 
+from fastapi.responses import StreamingResponse
+
 router = APIRouter()
 
 
@@ -235,6 +237,97 @@ async def get_patient_prescriptions(
         patient_id, status=prescription_status
     )
     return [PrescriptionResponse.model_validate(p) for p in prescriptions]
+
+
+@router.get("/prescriptions/{prescription_id}/pdf")
+async def download_prescription_pdf(
+    prescription_id: uuid.UUID,
+    current_user: User = Depends(require_permissions("prescriptions:read")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Descargar prescripcion medica en formato PDF."""
+    import io as _io
+
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+
+    from app.modules.pharmacy.models import Prescription
+    from app.modules.patients.models import Patient
+    from app.modules.auth.models import User as UserModel
+    from app.integrations.pdf.prescription_generator import PrescriptionPDFGenerator
+    from app.core.config import settings
+
+    # Fetch prescription with relationships
+    stmt = select(Prescription).where(Prescription.id == prescription_id)
+    result = await db.execute(stmt)
+    prescription = result.scalar_one_or_none()
+    if not prescription:
+        raise HTTPException(status_code=404, detail="Prescripcion no encontrada")
+
+    # Fetch patient
+    patient = await db.get(Patient, prescription.patient_id)
+    patient_name = f"{patient.first_name} {patient.last_name}" if patient else "N/A"
+
+    # Fetch prescriber
+    prescriber = await db.get(UserModel, prescription.created_by) if prescription.created_by else None
+
+    # Build medications list
+    medications = []
+    if hasattr(prescription, "items") and prescription.items:
+        for item in prescription.items:
+            medications.append({
+                "name": getattr(item, "medication_name", "") or getattr(item, "product_name", ""),
+                "dose": getattr(item, "dose", "") or "",
+                "frequency": getattr(item, "frequency", "") or "",
+                "duration": getattr(item, "duration", "") or "",
+                "quantity": getattr(item, "quantity", 1),
+                "instructions": getattr(item, "instructions", "") or "",
+                "is_controlled": getattr(item, "is_controlled", False),
+            })
+    else:
+        # Single medication prescription
+        medications.append({
+            "name": getattr(prescription, "medication_name", "") or getattr(prescription, "product_name", "Medicamento"),
+            "dose": getattr(prescription, "dose", "") or "",
+            "frequency": getattr(prescription, "frequency", "") or "",
+            "duration": getattr(prescription, "duration", "") or "",
+            "quantity": getattr(prescription, "quantity", 1),
+            "instructions": getattr(prescription, "instructions", "") or getattr(prescription, "notes", "") or "",
+            "is_controlled": getattr(prescription, "is_controlled", False),
+        })
+
+    config = {
+        "hospital_name": getattr(settings, "HOSPITAL_NAME", "HMIS Hospital"),
+        "rnc": getattr(settings, "HOSPITAL_RNC", ""),
+        "address": getattr(settings, "HOSPITAL_ADDRESS", ""),
+        "phone": getattr(settings, "HOSPITAL_PHONE", ""),
+    }
+    generator = PrescriptionPDFGenerator(config)
+
+    data = {
+        "prescription_number": getattr(prescription, "prescription_number", str(prescription.id)[:8].upper()),
+        "date": prescription.created_at,
+        "patient_name": patient_name,
+        "patient_dob": patient.date_of_birth if patient else None,
+        "patient_document": getattr(patient, "document_number", "") if patient else "",
+        "patient_gender": patient.gender if patient else "",
+        "prescriber_name": f"{prescriber.first_name} {prescriber.last_name}" if prescriber else "N/A",
+        "prescriber_specialty": getattr(prescriber, "specialty", "") or "",
+        "prescriber_license": getattr(prescriber, "license_number", "") or getattr(prescriber, "exequatur", "") or "",
+        "medications": medications,
+        "diagnosis": getattr(prescription, "diagnosis", None),
+        "notes": getattr(prescription, "notes", None),
+    }
+
+    pdf_bytes = await generator.generate_prescription_pdf(data)
+
+    return StreamingResponse(
+        _io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="prescripcion_{data["prescription_number"]}.pdf"',
+        },
+    )
 
 
 @router.post("/prescriptions/{prescription_id}/cancel", response_model=PrescriptionResponse)

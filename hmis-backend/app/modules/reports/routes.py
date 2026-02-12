@@ -140,7 +140,7 @@ async def delete_report_definition(
     definition.updated_by = current_user.id
     await db.commit()
 
-    return MessageResponse(message="Report definition deleted successfully")
+    return MessageResponse(mensaje="Report definition deleted successfully")
 
 
 # ─── Report Execution ────────────────────────────────────────
@@ -734,4 +734,4 @@ async def delete_scheduled_report(
     scheduled_report.updated_by = current_user.id
     await db.commit()
 
-    return MessageResponse(message="Scheduled report deleted successfully")
+    return MessageResponse(mensaje="Scheduled report deleted successfully")

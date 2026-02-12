@@ -23,9 +23,11 @@ from app.modules.appointments.schemas import (
     AvailableSlot,
     ProviderCreate,
     ProviderResponse,
+    ScheduleBlockCreate,
+    ScheduleBlockResponse,
     ScheduleTemplateCreate,
     ScheduleTemplateResponse,
-    ScheduleBlockCreate,
+    ScheduleTemplateUpdate,
     WaitingListCreate,
     WaitingListResponse,
 )
@@ -125,6 +127,86 @@ async def get_availability(
 
     service = ScheduleService(db)
     return await service.get_available_slots(provider_id, start_date, end_date)
+
+
+@router.get("/schedules", response_model=list[ScheduleTemplateResponse])
+async def list_schedule_templates(
+    provider_id: uuid.UUID | None = None,
+    current_user: User = Depends(require_permissions("schedules:read")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Listar plantillas de horario, opcionalmente filtradas por proveedor."""
+    service = ScheduleService(db)
+    templates = await service.list_templates(provider_id=provider_id)
+    return [ScheduleTemplateResponse.model_validate(t) for t in templates]
+
+
+@router.patch("/schedules/{template_id}", response_model=ScheduleTemplateResponse)
+async def update_schedule_template(
+    template_id: uuid.UUID,
+    data: ScheduleTemplateUpdate,
+    current_user: User = Depends(require_permissions("schedules:write")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Actualizar una plantilla de horario."""
+    service = ScheduleService(db)
+    update_data = data.model_dump(exclude_unset=True)
+    template = await service.update_template(template_id, update_data)
+    if not template:
+        raise HTTPException(status_code=404, detail="Plantilla de horario no encontrada")
+    return ScheduleTemplateResponse.model_validate(template)
+
+
+@router.delete("/schedules/{template_id}", response_model=MessageResponse)
+async def delete_schedule_template(
+    template_id: uuid.UUID,
+    current_user: User = Depends(require_permissions("schedules:write")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Eliminar (desactivar) una plantilla de horario."""
+    service = ScheduleService(db)
+    deleted = await service.delete_template(template_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Plantilla de horario no encontrada")
+    return MessageResponse(mensaje="Plantilla de horario eliminada")
+
+
+@router.post("/schedule-blocks", response_model=ScheduleBlockResponse, status_code=status.HTTP_201_CREATED)
+async def create_schedule_block(
+    data: ScheduleBlockCreate,
+    current_user: User = Depends(require_permissions("schedules:write")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Crear un bloqueo de agenda."""
+    service = ScheduleService(db)
+    block = await service.create_block(data)
+    return ScheduleBlockResponse.model_validate(block)
+
+
+@router.get("/schedule-blocks", response_model=list[ScheduleBlockResponse])
+async def list_schedule_blocks(
+    provider_id: uuid.UUID | None = None,
+    current_user: User = Depends(require_permissions("schedules:read")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Listar bloqueos de agenda."""
+    service = ScheduleService(db)
+    blocks = await service.list_blocks(provider_id=provider_id)
+    return [ScheduleBlockResponse.model_validate(b) for b in blocks]
+
+
+@router.delete("/schedule-blocks/{block_id}", response_model=MessageResponse)
+async def delete_schedule_block(
+    block_id: uuid.UUID,
+    current_user: User = Depends(require_permissions("schedules:write")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Eliminar un bloqueo de agenda."""
+    service = ScheduleService(db)
+    deleted = await service.delete_block(block_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Bloqueo de agenda no encontrado")
+    return MessageResponse(mensaje="Bloqueo de agenda eliminado")
 
 
 # =============================================

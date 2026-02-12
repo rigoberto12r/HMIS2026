@@ -43,7 +43,7 @@ export function DashboardKPIs({
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[...Array(4)].map((_, i) => (
-          <div key={i} className="h-32 bg-neutral-100 rounded-lg animate-pulse" />
+          <div key={i} className="h-32 bg-surface-100 rounded-xl shimmer" />
         ))}
       </div>
     );
@@ -78,7 +78,7 @@ export function DashboardKPIs({
       <KpiCard
         title="Cuentas por Cobrar"
         value={formatRD(cuentasPorCobrar)}
-        change={arReport ? `${arReport.items.length} pendientes` : 'Sin datos'}
+        change={arReport ? `${arReport.items?.length ?? 0} pendientes` : 'Sin datos'}
         changeType={cuentasPorCobrar > 0 ? 'negative' : 'neutral'}
         icon={DollarSign}
         iconColor="bg-orange-50 text-orange-500"

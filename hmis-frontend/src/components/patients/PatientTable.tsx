@@ -76,8 +76,8 @@ export function PatientTable({
       key: 'gender',
       header: 'Género',
       render: (row) => (
-        <Badge variant={row.gender === 'M' ? 'blue' : 'pink'}>
-          {row.gender === 'M' ? 'Masculino' : 'Femenino'}
+        <Badge variant={row.gender === 'M' ? 'info' : 'secondary'}>
+          {row.gender === 'M' ? 'Masculino' : row.gender === 'F' ? 'Femenino' : 'Otro'}
         </Badge>
       ),
     },

@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { FileText, Activity, Thermometer, Heart, User, Calendar } from 'lucide-react';
 
+const PORTAL_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+
 interface Encounter {
   id: string;
   encounter_type: string;
@@ -56,11 +58,11 @@ export default function PortalMedicalRecordsPage() {
       let url = '';
 
       if (activeTab === 'encounters') {
-        url = 'http://localhost:8000/api/v1/portal/medical-records/encounters';
+        url = `${PORTAL_API_URL}/portal/medical-records/encounters`;
       } else if (activeTab === 'diagnoses') {
-        url = 'http://localhost:8000/api/v1/portal/medical-records/diagnoses';
+        url = `${PORTAL_API_URL}/portal/medical-records/diagnoses`;
       } else {
-        url = 'http://localhost:8000/api/v1/portal/medical-records/vitals';
+        url = `${PORTAL_API_URL}/portal/medical-records/vitals`;
       }
 
       const response = await fetch(url, {

@@ -19,6 +19,8 @@ const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || ''
 );
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+
 interface Invoice {
   id: string;
   invoice_number: string;
@@ -62,10 +64,11 @@ export default function PaymentModal({
   const fetchSavedPaymentMethods = async () => {
     try {
       const response = await fetch(
-        `/api/v1/payments/stripe/customers/patient/${invoice.patient_id}`,
+        `${API_BASE_URL}/payments/stripe/customers/patient/${invoice.patient_id}`,
         {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
+            Authorization: `Bearer ${localStorage.getItem('hmis_access_token')}`,
+            'X-Tenant-ID': localStorage.getItem('hmis_tenant_id') || 'demo',
           },
         }
       );
@@ -91,11 +94,12 @@ export default function PaymentModal({
   const createPaymentIntent = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/v1/payments/stripe/payment-intents', {
+      const response = await fetch(`${API_BASE_URL}/payments/stripe/payment-intents`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('hmis_access_token')}`,
+          'X-Tenant-ID': localStorage.getItem('hmis_tenant_id') || 'demo',
         },
         body: JSON.stringify({
           invoice_id: invoice.id,
@@ -144,11 +148,12 @@ export default function PaymentModal({
   const handleDeletePaymentMethod = async (methodId: string) => {
     try {
       const response = await fetch(
-        `/api/v1/payments/stripe/payment-methods/${methodId}`,
+        `${API_BASE_URL}/payments/stripe/payment-methods/${methodId}`,
         {
           method: 'DELETE',
           headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
+            Authorization: `Bearer ${localStorage.getItem('hmis_access_token')}`,
+            'X-Tenant-ID': localStorage.getItem('hmis_tenant_id') || 'demo',
           },
         }
       );
@@ -223,7 +228,7 @@ export default function PaymentModal({
               onClose={onClose}
               onDownloadReceipt={async () => {
                 window.open(
-                  `/api/v1/billing/invoices/${invoice.id}/pdf`,
+                  `${API_BASE_URL}/billing/invoices/${invoice.id}/pdf`,
                   '_blank'
                 );
               }}

@@ -3,6 +3,9 @@
 import { useEffect, useState } from 'react';
 import { Calendar, Clock, MapPin, User, X, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
+
+const PORTAL_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
 interface Appointment {
   id: string;
@@ -32,7 +35,7 @@ export default function PortalAppointmentsPage() {
     try {
       const token = localStorage.getItem('portal_access_token');
       const response = await fetch(
-        `http://localhost:8000/api/v1/portal/appointments?include_past=${showPast}`,
+        `${PORTAL_API_URL}/portal/appointments?include_past=${showPast}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -51,14 +54,14 @@ export default function PortalAppointmentsPage() {
 
   const handleCancel = async (appointmentId: string) => {
     if (!cancelReason.trim()) {
-      alert('Please provide a cancellation reason');
+      toast.warning('Please provide a cancellation reason');
       return;
     }
 
     try {
       const token = localStorage.getItem('portal_access_token');
       const response = await fetch(
-        `http://localhost:8000/api/v1/portal/appointments/${appointmentId}/cancel`,
+        `${PORTAL_API_URL}/portal/appointments/${appointmentId}/cancel`,
         {
           method: 'POST',
           headers: {
@@ -78,7 +81,7 @@ export default function PortalAppointmentsPage() {
       setCancelReason('');
       fetchAppointments();
     } catch (err: any) {
-      alert(err.message || 'Failed to cancel appointment');
+      toast.error(err.message || 'Failed to cancel appointment');
     }
   };
 

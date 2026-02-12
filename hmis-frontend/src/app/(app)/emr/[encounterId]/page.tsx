@@ -10,7 +10,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, CheckCircle2, AlertTriangle, XCircle, FileText, Activity, Stethoscope, ShieldAlert, ClipboardList } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, AlertTriangle, XCircle, FileText, Activity, Stethoscope, ShieldAlert, ClipboardList, Paperclip } from 'lucide-react';
 
 // Hooks
 import {
@@ -34,6 +34,8 @@ import { DiagnosesSection } from './components/DiagnosesSection';
 import { AllergiesSection } from './components/AllergiesSection';
 import { CloseEncounterForm } from './components/CloseEncounterForm';
 import { MedRecSection } from './components/MedRecSection';
+import { AttachmentUploader } from '@/components/emr/AttachmentUploader';
+import { AttachmentList } from '@/components/emr/AttachmentList';
 
 // Types
 import type { SOAPFormData, VitalsFormData, DiagnosisFormData } from './types';
@@ -43,6 +45,7 @@ const sections = [
   { id: 'vitals', label: 'Signos Vitales', icon: Activity },
   { id: 'diagnoses', label: 'Diagnosticos', icon: Stethoscope },
   { id: 'allergies', label: 'Alergias', icon: ShieldAlert },
+  { id: 'attachments', label: 'Adjuntos', icon: Paperclip },
   { id: 'medrec', label: 'Reconciliacion', icon: ClipboardList },
   { id: 'close', label: 'Cerrar Encuentro', icon: CheckCircle2 },
 ];
@@ -321,6 +324,12 @@ export default function EncounterDetailPage() {
         />
       )}
       {activeSection === 'allergies' && <AllergiesSection allergies={allergies} />}
+      {activeSection === 'attachments' && (
+        <div className="space-y-4">
+          {!isReadOnly && <AttachmentUploader encounterId={encounterId} />}
+          <AttachmentList encounterId={encounterId} readOnly={isReadOnly} />
+        </div>
+      )}
       {activeSection === 'medrec' && encounter && (
         <MedRecSection encounterId={encounterId} patientId={encounter.patient_id} isReadOnly={isReadOnly} />
       )}

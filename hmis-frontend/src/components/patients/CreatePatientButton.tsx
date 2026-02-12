@@ -28,7 +28,7 @@ export function CreatePatientButton() {
       </Button>
 
       <CreatePatientModal
-        open={showModal}
+        isOpen={showModal}
         onClose={() => setShowModal(false)}
       />
     </>

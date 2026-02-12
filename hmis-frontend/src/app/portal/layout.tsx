@@ -25,12 +25,10 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [patientName, setPatientName] = useState('');
 
-  // Skip layout for login/register pages
   const isAuthPage = pathname?.includes('/login') || pathname?.includes('/register');
 
   useEffect(() => {
     if (!isAuthPage) {
-      // Check authentication
       const token = localStorage.getItem('portal_access_token');
       const name = localStorage.getItem('patient_name');
 
@@ -65,11 +63,11 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50">
+    <div className="min-h-screen bg-surface-50">
       {/* Mobile menu backdrop */}
       {mobileMenuOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 lg:hidden"
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
@@ -77,26 +75,26 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed top-0 left-0 z-50 h-screen w-64 bg-white border-r border-neutral-200 transition-transform duration-200 ease-in-out',
+          'fixed top-0 left-0 z-50 h-screen w-64 bg-gradient-to-b from-primary-800 via-primary-900 to-indigo-950 transition-transform duration-200 ease-in-out',
           'lg:translate-x-0',
           mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
         <div className="flex flex-col h-full">
           {/* Header */}
-          <div className="h-16 flex items-center justify-between px-4 border-b border-neutral-200">
+          <div className="h-16 flex items-center justify-between px-4 border-b border-white/10">
             <Link href="/portal/dashboard" className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center shadow-lg">
+              <div className="w-10 h-10 bg-gradient-to-br from-accent-400 to-accent-600 rounded-xl flex items-center justify-center shadow-lg shadow-accent-500/25">
                 <Heart className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="font-bold text-neutral-900 text-base">Patient Portal</h1>
-                <p className="text-xs text-neutral-500">HMIS Health</p>
+                <h1 className="font-bold text-white text-base">Patient Portal</h1>
+                <p className="text-xs text-white/40">HMIS Health</p>
               </div>
             </Link>
             <button
               onClick={() => setMobileMenuOpen(false)}
-              className="lg:hidden p-2 hover:bg-neutral-100 rounded-lg"
+              className="lg:hidden p-2 hover:bg-white/10 rounded-lg text-white/60"
             >
               <X className="w-5 h-5" />
             </button>
@@ -113,10 +111,10 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                       href={item.href}
                       onClick={() => setMobileMenuOpen(false)}
                       className={cn(
-                        'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                        'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200',
                         isActive
-                          ? 'bg-blue-50 text-blue-600'
-                          : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900'
+                          ? 'bg-white/15 text-white'
+                          : 'text-white/60 hover:text-white hover:bg-white/10'
                       )}
                     >
                       <item.icon className="w-5 h-5 flex-shrink-0" />
@@ -129,19 +127,22 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
           </nav>
 
           {/* User section */}
-          <div className="p-3 border-t border-neutral-200">
+          <div className="p-3 border-t border-white/10">
             <div className="flex items-center gap-3 px-3 py-2 mb-2">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-full flex items-center justify-center">
-                <User className="w-5 h-5 text-blue-600" />
+              <div className="relative">
+                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                  <User className="w-5 h-5 text-white" />
+                </div>
+                <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-accent-400 rounded-full border-2 border-indigo-900" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-neutral-900 truncate">{patientName}</p>
-                <p className="text-xs text-neutral-500">Patient Account</p>
+                <p className="text-sm font-medium text-white truncate">{patientName}</p>
+                <p className="text-xs text-white/40">Patient Account</p>
               </div>
             </div>
             <button
               onClick={handleLogout}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/40 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
             >
               <LogOut className="w-4 h-4" />
               <span>Sign Out</span>
@@ -153,11 +154,11 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       {/* Main content */}
       <div className="lg:ml-64 min-h-screen">
         {/* Top bar */}
-        <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-neutral-200/60 h-16">
+        <header className="sticky top-0 z-30 glass-strong h-16 border-b border-surface-200/60">
           <div className="flex items-center justify-between h-full px-4 lg:px-6">
             <button
               onClick={() => setMobileMenuOpen(true)}
-              className="lg:hidden p-2 hover:bg-neutral-100 rounded-lg"
+              className="lg:hidden p-2 hover:bg-surface-100 rounded-lg"
             >
               <Menu className="w-5 h-5" />
             </button>
@@ -166,11 +167,11 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
             <div className="flex items-center gap-3">
               <button
-                className="relative w-10 h-10 flex items-center justify-center rounded-lg hover:bg-neutral-100 text-neutral-500 transition-colors"
+                className="relative w-10 h-10 flex items-center justify-center rounded-lg hover:bg-surface-100 text-surface-500 transition-colors"
                 aria-label="Notifications"
               >
                 <Bell className="w-5 h-5" />
-                <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full" />
+                <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white" />
               </button>
             </div>
           </div>
@@ -180,15 +181,15 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         <main className="p-4 lg:p-6">{children}</main>
 
         {/* Footer */}
-        <footer className="border-t border-neutral-200 py-6 px-4 lg:px-6 mt-12">
-          <div className="text-center text-sm text-neutral-500">
+        <footer className="border-t border-surface-200 py-6 px-4 lg:px-6 mt-12">
+          <div className="text-center text-sm text-surface-500">
             <p>
               HMIS Patient Portal - For medical emergencies, call{' '}
-              <a href="tel:911" className="font-semibold text-blue-600 hover:underline">
+              <a href="tel:911" className="font-semibold text-primary-500 hover:underline">
                 911
               </a>
             </p>
-            <p className="text-xs mt-1 text-neutral-400">
+            <p className="text-xs mt-1 text-surface-400">
               Secure health information system - HIPAA compliant
             </p>
           </div>

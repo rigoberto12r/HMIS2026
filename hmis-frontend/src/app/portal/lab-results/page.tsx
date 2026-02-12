@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { Activity, Calendar, User, Download, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
+const PORTAL_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+
 interface LabResult {
   id: string;
   order_date: string;
@@ -29,7 +31,7 @@ export default function PortalLabResultsPage() {
   const fetchLabResults = async () => {
     try {
       const token = localStorage.getItem('portal_access_token');
-      const response = await fetch('http://localhost:8000/api/v1/portal/lab-results', {
+      const response = await fetch(`${PORTAL_API_URL}/portal/lab-results`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 

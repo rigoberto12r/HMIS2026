@@ -5,10 +5,11 @@ import { Modal } from '@/components/ui/modal';
 import { Input, Select } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { useCreatePatient, type PatientCreateData } from '@/hooks/usePatients';
 
 interface CreatePatientModalProps {
-  open: boolean;
+  isOpen: boolean;
   onClose: () => void;
 }
 
@@ -51,7 +52,7 @@ const emptyForm: PatientCreateData = {
   emergency_contact_phone: '',
 };
 
-export function CreatePatientModal({ open, onClose }: CreatePatientModalProps) {
+export function CreatePatientModal({ isOpen, onClose }: CreatePatientModalProps) {
   const [formData, setFormData] = useState<PatientCreateData>(emptyForm);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -79,6 +80,7 @@ export function CreatePatientModal({ open, onClose }: CreatePatientModalProps) {
 
     try {
       await createPatient.mutateAsync(formData);
+      toast.success('Paciente registrado exitosamente');
       setFormData(emptyForm);
       setFormError(null);
       onClose();
@@ -105,11 +107,11 @@ export function CreatePatientModal({ open, onClose }: CreatePatientModalProps) {
 
   return (
     <Modal
-      open={open}
+      isOpen={isOpen}
       onClose={handleClose}
       title="Registrar Nuevo Paciente"
       size="lg"
-      actions={
+      footer={
         <>
           <Button variant="outline" onClick={handleClose} disabled={createPatient.isPending}>
             Cancelar

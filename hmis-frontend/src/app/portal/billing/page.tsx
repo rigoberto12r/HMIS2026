@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { DollarSign, Calendar, Download, CreditCard, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
+const PORTAL_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+
 interface Invoice {
   id: string;
   invoice_number: string;
@@ -57,7 +59,7 @@ export default function PortalBillingPage() {
     try {
       const token = localStorage.getItem('portal_access_token');
       const response = await fetch(
-        `http://localhost:8000/api/v1/portal/billing/invoices?unpaid_only=${unpaidOnly}`,
+        `${PORTAL_API_URL}/portal/billing/invoices?unpaid_only=${unpaidOnly}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -78,7 +80,7 @@ export default function PortalBillingPage() {
     setIsLoading(true);
     try {
       const token = localStorage.getItem('portal_access_token');
-      const response = await fetch('http://localhost:8000/api/v1/portal/billing/payments', {
+      const response = await fetch(`${PORTAL_API_URL}/portal/billing/payments`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 

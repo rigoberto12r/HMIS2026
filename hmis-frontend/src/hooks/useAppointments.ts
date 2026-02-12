@@ -34,12 +34,14 @@ export interface AppointmentSearchParams {
 
 export interface AppointmentCreateData {
   patient_id: string;
-  appointment_datetime: string;
-  appointment_type: string;
-  provider_name?: string;
+  provider_id: string;
+  scheduled_start: string;
+  scheduled_end: string;
+  appointment_type?: string;
   reason?: string;
-  duration_minutes?: number;
   notes?: string;
+  location_id?: string;
+  source?: string;
 }
 
 /**
@@ -126,13 +128,16 @@ export function useUpdateAppointmentStatus() {
 
 /**
  * Hook to check in a patient for an appointment.
+ * Backend: PATCH /appointments/{id}/status with AppointmentStatusUpdate schema
  */
 export function useCheckInAppointment() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (appointmentId: string) => {
-      const response = await api.post<Appointment>(`/appointments/${appointmentId}/check-in`);
+      const response = await api.patch<Appointment>(`/appointments/${appointmentId}/status`, {
+        status: 'arrived',
+      });
       return response;
     },
     onSuccess: () => {
@@ -143,13 +148,17 @@ export function useCheckInAppointment() {
 
 /**
  * Hook to cancel an appointment.
+ * Backend: PATCH /appointments/{id}/status with AppointmentStatusUpdate schema
  */
 export function useCancelAppointment() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ id, reason }: { id: string; reason?: string }) => {
-      const response = await api.post<Appointment>(`/appointments/${id}/cancel`, { reason });
+      const response = await api.patch<Appointment>(`/appointments/${id}/status`, {
+        status: 'cancelled',
+        cancellation_reason: reason,
+      });
       return response;
     },
     onSuccess: () => {

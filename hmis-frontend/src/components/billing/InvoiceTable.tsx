@@ -63,9 +63,7 @@ export function InvoiceTable({
       key: 'status',
       header: 'Estado',
       render: (invoice) => (
-        <StatusBadge status={invoice.status}>
-          {statusMap[invoice.status] || invoice.status}
-        </StatusBadge>
+        <StatusBadge status={statusMap[invoice.status] || invoice.status} />
       ),
     },
     {

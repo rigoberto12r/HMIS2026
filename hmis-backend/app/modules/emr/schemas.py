@@ -302,6 +302,16 @@ class ClinicalTemplateCreate(BaseModel):
     is_default: bool = False
 
 
+class ClinicalTemplateUpdate(BaseModel):
+    """Actualizacion de plantilla clinica."""
+    name: str | None = Field(default=None, max_length=200)
+    specialty_code: str | None = None
+    template_type: str | None = None
+    schema_json: dict[str, Any] | None = None
+    ui_layout_json: dict[str, Any] | None = None
+    is_default: bool | None = None
+
+
 class ClinicalTemplateResponse(BaseModel):
     """Respuesta de plantilla clinica."""
     id: uuid.UUID
@@ -325,3 +335,23 @@ class ProblemListUpdate(BaseModel):
     """Actualizacion de problema en lista."""
     status: str | None = Field(default=None, description="active, inactive, resolved")
     notes: str | None = None
+
+
+# =============================================
+# Archivos Adjuntos de Encuentro
+# =============================================
+
+class AttachmentResponse(BaseModel):
+    """Respuesta de archivo adjunto."""
+    id: uuid.UUID
+    encounter_id: uuid.UUID
+    file_key: str
+    file_name: str
+    file_type: str
+    file_size: int
+    description: str | None = None
+    category: str
+    uploaded_by: uuid.UUID
+    created_at: datetime
+
+    model_config = {"from_attributes": True}

@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react';
 import { User, Mail, Phone, MapPin, Calendar, Save, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { toast } from 'sonner';
+
+const PORTAL_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
 interface PatientProfile {
   id: string;
@@ -51,7 +54,7 @@ export default function PortalProfilePage() {
   const fetchProfile = async () => {
     try {
       const token = localStorage.getItem('portal_access_token');
-      const response = await fetch('http://localhost:8000/api/v1/portal/profile', {
+      const response = await fetch(`${PORTAL_API_URL}/portal/profile`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -90,7 +93,7 @@ export default function PortalProfilePage() {
 
     try {
       const token = localStorage.getItem('portal_access_token');
-      const response = await fetch('http://localhost:8000/api/v1/portal/profile', {
+      const response = await fetch(`${PORTAL_API_URL}/portal/profile`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -106,7 +109,7 @@ export default function PortalProfilePage() {
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err: any) {
-      alert(err.message || 'Failed to update profile');
+      toast.error(err.message || 'Failed to update profile');
     } finally {
       setIsSaving(false);
     }

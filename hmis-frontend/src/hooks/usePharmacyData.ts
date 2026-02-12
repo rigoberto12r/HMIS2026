@@ -20,6 +20,7 @@ export function usePharmacyStats() {
     queryKey: ['pharmacy-stats'],
     queryFn: () => api.get<PharmacyStats>('/pharmacy/stats'),
     staleTime: 30 * 1000, // 30 seconds
+    retry: false, // Endpoint may not exist yet — avoid spamming 404s
   });
 }
 
@@ -48,6 +49,10 @@ export function usePrescriptions(params?: {
   });
 }
 
+/**
+ * Dispense a prescription.
+ * Backend: POST /pharmacy/dispensations with DispensationCreate schema
+ */
 export function useDispensePrescription() {
   const queryClient = useQueryClient();
 
@@ -55,18 +60,22 @@ export function useDispensePrescription() {
     mutationFn: ({
       prescriptionId,
       lotId,
+      patientId,
       quantity,
       notes,
     }: {
       prescriptionId: string;
       lotId: string;
+      patientId: string;
       quantity: number;
       notes?: string;
     }) =>
-      api.post(`/pharmacy/prescriptions/${prescriptionId}/dispense`, {
-        lot_id: lotId,
+      api.post('/pharmacy/dispensations', {
+        prescription_id: prescriptionId,
+        product_lot_id: lotId,
+        patient_id: patientId,
         quantity_dispensed: quantity,
-        pharmacist_notes: notes,
+        notes,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['prescriptions'] });
@@ -76,12 +85,16 @@ export function useDispensePrescription() {
   });
 }
 
+/**
+ * Cancel a prescription.
+ * Backend: POST /pharmacy/prescriptions/{id}/cancel with PrescriptionCancel schema
+ */
 export function useCancelPrescription() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (prescriptionId: string) =>
-      api.post(`/pharmacy/prescriptions/${prescriptionId}/cancel`),
+    mutationFn: ({ prescriptionId, reason }: { prescriptionId: string; reason: string }) =>
+      api.post(`/pharmacy/prescriptions/${prescriptionId}/cancel`, { reason }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['prescriptions'] });
       queryClient.invalidateQueries({ queryKey: ['pharmacy-stats'] });
@@ -135,10 +148,14 @@ export function useExpiringLots(days = 90) {
 
 // ─── Alerts ────────────────────────────────────────────
 
+/**
+ * Fetch inventory alerts.
+ * Backend: GET /pharmacy/inventory/alerts
+ */
 export function useInventoryAlerts() {
   return useQuery({
     queryKey: ['inventory-alerts'],
-    queryFn: () => api.get<InventoryAlert[]>('/pharmacy/alerts'),
+    queryFn: () => api.get<InventoryAlert[]>('/pharmacy/inventory/alerts'),
     staleTime: 2 * 60 * 1000, // 2 minutes
   });
 }

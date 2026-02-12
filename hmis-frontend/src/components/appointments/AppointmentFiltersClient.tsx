@@ -3,8 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Filter } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
+import { Input, Select } from '@/components/ui/input';
 
 /**
  * Appointment Filters - Client Component

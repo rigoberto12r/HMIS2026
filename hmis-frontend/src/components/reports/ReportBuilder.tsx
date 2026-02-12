@@ -7,6 +7,7 @@ import { Input, Select } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Plus, X, Save, Eye, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { toast } from 'sonner';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -157,7 +158,7 @@ export function ReportBuilder({ onSave }: Props) {
 
   const handleSave = async () => {
     if (!name.trim()) {
-      alert('Please enter a report name');
+      toast.warning('Please enter a report name');
       return;
     }
 
@@ -178,7 +179,7 @@ export function ReportBuilder({ onSave }: Props) {
       }
     } catch (error: any) {
       console.error('Failed to save report:', error);
-      alert(error.response?.data?.detail || 'Failed to save report');
+      toast.error(error.response?.data?.detail || 'Failed to save report');
     } finally {
       setSaving(false);
     }
