@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Search, Filter, Download } from 'lucide-react';
+import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -66,8 +67,7 @@ export function PatientFiltersClient({
   };
 
   const handleExport = () => {
-    // TODO: Implement export functionality
-    alert('Función de exportación en desarrollo');
+    toast.info('Función de exportación en desarrollo');
   };
 
   return (

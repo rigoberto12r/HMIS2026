@@ -34,12 +34,14 @@ export interface AppointmentSearchParams {
 
 export interface AppointmentCreateData {
   patient_id: string;
-  appointment_datetime: string;
-  appointment_type: string;
-  provider_name?: string;
+  provider_id: string;
+  scheduled_start: string;
+  scheduled_end: string;
+  appointment_type?: string;
   reason?: string;
-  duration_minutes?: number;
   notes?: string;
+  location_id?: string;
+  source?: string;
 }
 
 /**

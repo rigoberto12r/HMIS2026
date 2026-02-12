@@ -4,28 +4,22 @@ import { useState } from 'react';
 import { Card, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
+import { toast } from 'sonner';
 import { useInvoices, useBillingStats, type Invoice } from '@/hooks/useInvoices';
-import { InvoiceStats, InvoiceTable } from '@/components/billing';
+import { InvoiceStats, InvoiceTable, CreateInvoiceModal, CreditNoteModal } from '@/components/billing';
+import PaymentModal from '@/components/payments/PaymentModal';
 
-/**
- * Billing Page - Refactored with React Query
- *
- * Before: 664 lines with manual fetching
- * After: ~150 lines with hooks and extracted components
- *
- * Benefits:
- * - Automatic caching and refetching
- * - Cleaner component separation
- * - Reusable invoice components
- */
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
 export default function BillingPage() {
   const [page, setPage] = useState(1);
-  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [showCreateInvoice, setShowCreateInvoice] = useState(false);
+  const [paymentInvoice, setPaymentInvoice] = useState<Invoice | null>(null);
+  const [creditNoteInvoice, setCreditNoteInvoice] = useState<Invoice | null>(null);
 
   // Fetch invoices with React Query
-  const { data, isLoading, error } = useInvoices({ page, page_size: 10 });
-  
+  const { data, isLoading, error, refetch } = useInvoices({ page, page_size: 10 });
+
   // Fetch billing stats
   const { data: stats } = useBillingStats();
 
@@ -39,31 +33,44 @@ export default function BillingPage() {
     .filter((inv) => inv.status === 'paid')
     .reduce((sum, inv) => sum + (inv.grand_total || 0), 0);
   const pendienteCobro = stats?.total_pending ?? (totalFacturado - totalCobrado);
-  const facturasVencidas = invoices.filter((inv) => 
+  const facturasVencidas = invoices.filter((inv) =>
     inv.status === 'issued' && inv.created_at < new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
   ).length;
 
-  // Event handlers
   const handlePayment = (invoice: Invoice) => {
-    setSelectedInvoice(invoice);
-    // TODO: Open payment modal
-    console.log('Payment for invoice:', invoice.invoice_number);
+    setPaymentInvoice(invoice);
   };
 
   const handleCreditNote = (invoice: Invoice) => {
-    setSelectedInvoice(invoice);
-    // TODO: Open credit note modal
-    console.log('Credit note for invoice:', invoice.invoice_number);
+    setCreditNoteInvoice(invoice);
   };
 
   const handleDownload = (invoice: Invoice) => {
-    // TODO: Download invoice PDF
-    console.log('Download invoice:', invoice.invoice_number);
-  };
+    const token = localStorage.getItem('hmis_access_token');
+    const tenantId = localStorage.getItem('hmis_tenant_id') || 'demo';
 
-  const handleCreateInvoice = () => {
-    // TODO: Open create invoice modal
-    console.log('Create new invoice');
+    fetch(`${API_BASE_URL}/billing/invoices/${invoice.id}/pdf`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'X-Tenant-ID': tenantId,
+      },
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('Error descargando PDF');
+        return res.blob();
+      })
+      .then((blob) => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `factura_${invoice.invoice_number || invoice.id}.pdf`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+      })
+      .catch((err) => {
+        console.error('Error downloading invoice PDF:', err);
+        toast.error('No se pudo descargar el PDF de la factura');
+      });
   };
 
   if (error) {
@@ -86,7 +93,7 @@ export default function BillingPage() {
             Gestión de facturas, pagos y cuentas por cobrar
           </p>
         </div>
-        <Button onClick={handleCreateInvoice}>
+        <Button onClick={() => setShowCreateInvoice(true)}>
           <Plus className="w-4 h-4 mr-2" />
           Nueva Factura
         </Button>
@@ -136,8 +143,31 @@ export default function BillingPage() {
         </div>
       )}
 
-      {/* TODO: Modals */}
-      {/* PaymentModal, CreditNoteModal, CreateInvoiceModal */}
+      {/* Create Invoice Modal */}
+      <CreateInvoiceModal
+        isOpen={showCreateInvoice}
+        onClose={() => setShowCreateInvoice(false)}
+      />
+
+      {/* Payment Modal (Stripe) */}
+      {paymentInvoice && (
+        <PaymentModal
+          invoice={paymentInvoice}
+          isOpen={!!paymentInvoice}
+          onClose={() => setPaymentInvoice(null)}
+          onSuccess={() => {
+            setPaymentInvoice(null);
+            refetch();
+          }}
+        />
+      )}
+
+      {/* Credit Note Modal */}
+      <CreditNoteModal
+        isOpen={!!creditNoteInvoice}
+        onClose={() => setCreditNoteInvoice(null)}
+        invoice={creditNoteInvoice}
+      />
     </div>
   );
 }

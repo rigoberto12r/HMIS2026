@@ -32,6 +32,7 @@ class ReportDefinition(Base, BaseEntity):
 
     __tablename__ = "report_definitions"
 
+    tenant_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     report_type: Mapped[str] = mapped_column(
@@ -82,6 +83,7 @@ class ScheduledReport(Base, BaseEntity):
 
     __tablename__ = "scheduled_reports"
 
+    tenant_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     report_definition_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("report_definitions.id"), nullable=False, index=True
     )
@@ -125,8 +127,9 @@ class ReportExecution(Base, BaseEntity):
 
     __tablename__ = "report_executions"
 
-    report_definition_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("report_definitions.id"), nullable=False, index=True
+    tenant_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    report_definition_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("report_definitions.id"), nullable=True, index=True
     )
 
     executed_by: Mapped[uuid.UUID | None] = mapped_column(

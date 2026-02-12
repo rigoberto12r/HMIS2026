@@ -1,11 +1,12 @@
 'use client';
 
 import { Card } from '@/components/ui/card';
-import { Calendar, AlertTriangle } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { AppointmentList } from '@/components/appointments/AppointmentList';
 import { AppointmentFiltersClient } from '@/components/appointments/AppointmentFiltersClient';
 import { AppointmentHeader } from '@/components/appointments/AppointmentHeader';
+import { CalendarView } from '@/components/appointments/CalendarView';
 import { useAppointments } from '@/hooks/useAppointments';
 
 /**
@@ -68,12 +69,11 @@ export default function AppointmentsPage() {
 
       {/* Calendar View */}
       {view === 'calendar' && (
-        <Card className="p-8 text-center">
-          <Calendar className="w-12 h-12 text-neutral-400 mx-auto mb-3" />
-          <p className="text-neutral-500">Vista de calendario en desarrollo</p>
-          <p className="text-sm text-neutral-400 mt-1">
-            Próximamente: calendario interactivo con drag & drop
-          </p>
+        <Card className="p-4">
+          <CalendarView
+            appointments={data?.items || []}
+            loading={isLoading}
+          />
         </Card>
       )}
     </div>

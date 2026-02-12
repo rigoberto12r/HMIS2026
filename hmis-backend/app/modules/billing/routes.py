@@ -28,6 +28,9 @@ from app.modules.billing.schemas import (
     InsuranceClaimCreate,
     InsuranceClaimResponse,
     InsuranceClaimStatusUpdate,
+    InsurerContractCreate,
+    InsurerContractResponse,
+    InsurerContractUpdate,
     InvoiceCreate,
     InvoiceListResponse,
     InvoiceResponse,
@@ -41,11 +44,13 @@ from app.modules.billing.schemas import (
     RNCValidationResponse,
     ServiceCatalogCreate,
     ServiceCatalogResponse,
+    ServiceCatalogUpdate,
     TrialBalance,
 )
 from app.modules.billing.service import (
     ChargeService,
     InsuranceClaimService,
+    InsurerContractService,
     InvoiceService,
     InvoiceVoidService,
     PaymentReversalService,
@@ -97,6 +102,59 @@ async def list_services(
         items=[ServiceCatalogResponse.model_validate(i) for i in items],
         total=total, page=pagination.page, page_size=pagination.page_size,
     )
+
+
+@router.get("/services/{service_id}", response_model=ServiceCatalogResponse)
+async def get_service(
+    service_id: uuid.UUID,
+    current_user: User = Depends(require_permissions("billing:read")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Obtener un servicio del catalogo por ID."""
+    service = ServiceCatalogService(db)
+    item = await service.get_service(service_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+    return ServiceCatalogResponse.model_validate(item)
+
+
+@router.patch("/services/{service_id}", response_model=ServiceCatalogResponse)
+async def update_service(
+    service_id: uuid.UUID,
+    data: ServiceCatalogUpdate,
+    current_user: User = Depends(require_permissions("billing:write")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Actualizar un servicio del catalogo."""
+    svc = ServiceCatalogService(db)
+    item = await svc.get_service(service_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+
+    updates = data.model_dump(exclude_unset=True)
+    for field, value in updates.items():
+        setattr(item, field, value)
+    await db.flush()
+
+    return ServiceCatalogResponse.model_validate(item)
+
+
+@router.delete("/services/{service_id}")
+async def delete_service(
+    service_id: uuid.UUID,
+    current_user: User = Depends(require_permissions("billing:write")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Desactivar (soft delete) un servicio del catalogo."""
+    svc = ServiceCatalogService(db)
+    item = await svc.get_service(service_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+
+    item.is_active = False
+    await db.flush()
+
+    return {"mensaje": f"Servicio '{item.name}' eliminado exitosamente"}
 
 
 # =============================================
@@ -435,6 +493,86 @@ async def list_claims(
         items=[InsuranceClaimResponse.model_validate(c) for c in claims],
         total=total, page=pagination.page, page_size=pagination.page_size,
     )
+
+
+# =============================================
+# Contratos con Aseguradoras
+# =============================================
+
+@router.post("/insurers", response_model=InsurerContractResponse, status_code=status.HTTP_201_CREATED)
+async def create_insurer_contract(
+    data: InsurerContractCreate,
+    current_user: User = Depends(require_permissions("billing:write")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Crear un contrato con aseguradora."""
+    service = InsurerContractService(db)
+    contract = await service.create_contract(data, created_by=current_user.id)
+    return InsurerContractResponse.model_validate(contract)
+
+
+@router.get("/insurers", response_model=PaginatedResponse[InsurerContractResponse])
+async def list_insurer_contracts(
+    insurer_status: str | None = Query(default=None, alias="status"),
+    pagination: Annotated[PaginationParams, Depends()] = None,
+    current_user: User = Depends(require_permissions("billing:read")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Listar contratos con aseguradoras."""
+    if pagination is None:
+        pagination = PaginationParams()
+    service = InsurerContractService(db)
+    contracts, total = await service.list_contracts(
+        status=insurer_status, offset=pagination.offset, limit=pagination.page_size,
+    )
+    return PaginatedResponse.create(
+        items=[InsurerContractResponse.model_validate(c) for c in contracts],
+        total=total, page=pagination.page, page_size=pagination.page_size,
+    )
+
+
+@router.get("/insurers/{contract_id}", response_model=InsurerContractResponse)
+async def get_insurer_contract(
+    contract_id: uuid.UUID,
+    current_user: User = Depends(require_permissions("billing:read")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Obtener contrato con aseguradora por ID."""
+    service = InsurerContractService(db)
+    contract = await service.get_contract(contract_id)
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contrato no encontrado")
+    return InsurerContractResponse.model_validate(contract)
+
+
+@router.patch("/insurers/{contract_id}", response_model=InsurerContractResponse)
+async def update_insurer_contract(
+    contract_id: uuid.UUID,
+    data: InsurerContractUpdate,
+    current_user: User = Depends(require_permissions("billing:write")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Actualizar contrato con aseguradora."""
+    service = InsurerContractService(db)
+    update_data = data.model_dump(exclude_unset=True)
+    contract = await service.update_contract(contract_id, update_data, updated_by=current_user.id)
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contrato no encontrado")
+    return InsurerContractResponse.model_validate(contract)
+
+
+@router.delete("/insurers/{contract_id}", response_model=MessageResponse)
+async def delete_insurer_contract(
+    contract_id: uuid.UUID,
+    current_user: User = Depends(require_permissions("billing:write")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Eliminar contrato con aseguradora."""
+    service = InsurerContractService(db)
+    deleted = await service.delete_contract(contract_id, updated_by=current_user.id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Contrato no encontrado")
+    return MessageResponse(message="Contrato eliminado")
 
 
 # =============================================

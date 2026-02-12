@@ -133,7 +133,7 @@ services:
     depends_on:
       - backend
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3000/ -L || exit 1"]
+      test: ["CMD-SHELL", "wget --spider http://localhost:3000/ || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3

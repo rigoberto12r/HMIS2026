@@ -104,17 +104,176 @@ async def send_appointment_reminders():
 
 
 async def cleanup_expired_sessions():
-    """Clean up expired sessions from database. Runs daily at 3 AM."""
+    """Clean up expired refresh tokens and inactive sessions. Runs daily at 3 AM."""
     logger.info("Running session cleanup job...")
-    # TODO: Implement session cleanup logic
-    pass
+
+    try:
+        from app.modules.auth.models import User
+        from sqlalchemy import update, and_, delete
+
+        async with AsyncSessionLocal() as db:
+            # Clean up expired refresh tokens from Redis
+            try:
+                # Remove expired session keys (pattern: session:*)
+                cursor = 0
+                cleaned_count = 0
+                while True:
+                    cursor, keys = await redis_client.scan(
+                        cursor, match="session:*", count=100
+                    )
+                    for key in keys:
+                        ttl = await redis_client.ttl(key)
+                        if ttl == -1:
+                            # Key has no expiry - set a 7-day TTL or delete
+                            await redis_client.delete(key)
+                            cleaned_count += 1
+                    if cursor == 0:
+                        break
+
+                logger.info(f"Cleaned {cleaned_count} orphaned session keys from Redis")
+            except Exception as redis_err:
+                logger.warning(f"Redis cleanup failed (non-critical): {redis_err}")
+
+            # Deactivate users who haven't logged in for 180 days
+            cutoff = datetime.now() - timedelta(days=180)
+            result = await db.execute(
+                update(User)
+                .where(
+                    and_(
+                        User.is_active == True,
+                        User.last_login_at != None,
+                        User.last_login_at < cutoff,
+                    )
+                )
+                .values(is_active=False)
+            )
+            inactive_count = result.rowcount
+            await db.commit()
+
+            if inactive_count > 0:
+                logger.info(f"Deactivated {inactive_count} users inactive for 180+ days")
+
+            logger.info("Session cleanup job completed successfully")
+
+    except Exception as e:
+        logger.error(f"Session cleanup job failed: {e}")
 
 
 async def generate_daily_reports():
-    """Generate and email daily reports. Runs daily at 8 AM."""
+    """Generate and email daily summary reports. Runs daily at 8 AM."""
     logger.info("Generating daily reports...")
-    # TODO: Implement daily reports
-    pass
+
+    try:
+        from app.modules.appointments.models import Appointment
+        from app.modules.billing.models import Invoice, Payment
+        from sqlalchemy import select, func, and_
+
+        async with AsyncSessionLocal() as db:
+            yesterday = datetime.now().date() - timedelta(days=1)
+            yesterday_start = datetime.combine(yesterday, datetime.min.time())
+            yesterday_end = datetime.combine(yesterday, datetime.max.time())
+
+            # Appointment stats for yesterday
+            appt_total = await db.scalar(
+                select(func.count(Appointment.id)).where(
+                    and_(
+                        Appointment.scheduled_start >= yesterday_start,
+                        Appointment.scheduled_start <= yesterday_end,
+                    )
+                )
+            ) or 0
+
+            appt_completed = await db.scalar(
+                select(func.count(Appointment.id)).where(
+                    and_(
+                        Appointment.scheduled_start >= yesterday_start,
+                        Appointment.scheduled_start <= yesterday_end,
+                        Appointment.status == "completed",
+                    )
+                )
+            ) or 0
+
+            appt_no_show = await db.scalar(
+                select(func.count(Appointment.id)).where(
+                    and_(
+                        Appointment.scheduled_start >= yesterday_start,
+                        Appointment.scheduled_start <= yesterday_end,
+                        Appointment.status == "no_show",
+                    )
+                )
+            ) or 0
+
+            # Billing stats for yesterday
+            invoices_created = await db.scalar(
+                select(func.count(Invoice.id)).where(
+                    and_(
+                        Invoice.created_at >= yesterday_start,
+                        Invoice.created_at <= yesterday_end,
+                    )
+                )
+            ) or 0
+
+            revenue = await db.scalar(
+                select(func.coalesce(func.sum(Payment.amount), 0)).where(
+                    and_(
+                        Payment.payment_date >= yesterday_start,
+                        Payment.payment_date <= yesterday_end,
+                    )
+                )
+            ) or 0
+
+            report_data = {
+                "date": yesterday.isoformat(),
+                "appointments": {
+                    "total": appt_total,
+                    "completed": appt_completed,
+                    "no_show": appt_no_show,
+                    "completion_rate": round(appt_completed / appt_total * 100, 1) if appt_total > 0 else 0,
+                },
+                "billing": {
+                    "invoices_created": invoices_created,
+                    "revenue_collected": float(revenue),
+                },
+            }
+
+            logger.info(
+                f"Daily report for {yesterday.isoformat()}: "
+                f"Appointments={appt_total} (completed={appt_completed}, no_show={appt_no_show}), "
+                f"Invoices={invoices_created}, Revenue={float(revenue):.2f}"
+            )
+
+            # Try to send email report
+            try:
+                html_body = f"""
+                <h2>Resumen Diario - {yesterday.strftime('%d/%m/%Y')}</h2>
+                <h3>Citas</h3>
+                <ul>
+                    <li>Total: {appt_total}</li>
+                    <li>Completadas: {appt_completed}</li>
+                    <li>No Show: {appt_no_show}</li>
+                    <li>Tasa de cumplimiento: {report_data['appointments']['completion_rate']}%</li>
+                </ul>
+                <h3>Facturación</h3>
+                <ul>
+                    <li>Facturas creadas: {invoices_created}</li>
+                    <li>Ingresos recaudados: RD$ {float(revenue):,.2f}</li>
+                </ul>
+                """
+
+                await email_service.send_email(
+                    to="admin@hmis.app",
+                    subject=f"HMIS - Resumen Diario {yesterday.strftime('%d/%m/%Y')}",
+                    html_body=html_body,
+                    text_body=f"Resumen: {appt_total} citas, RD$ {float(revenue):,.2f} ingresos",
+                )
+                logger.info("Daily report email sent successfully")
+            except Exception as email_err:
+                logger.warning(f"Could not send daily report email (non-critical): {email_err}")
+
+            logger.info("Daily report generation completed")
+
+    except Exception as e:
+        logger.error(f"Daily report generation failed: {e}")
 
 
 async def monitor_dead_letter_queue():

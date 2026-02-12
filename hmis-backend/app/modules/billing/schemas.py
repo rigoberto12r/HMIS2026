@@ -26,6 +26,18 @@ class ServiceCatalogCreate(BaseModel):
     cups_code: str | None = None
 
 
+class ServiceCatalogUpdate(BaseModel):
+    """Actualizacion de servicio en catalogo."""
+    name: str | None = None
+    description: str | None = None
+    category: str | None = None
+    base_price: float | None = Field(default=None, ge=0)
+    tax_rate: float | None = Field(default=None, ge=0, le=1)
+    currency: str | None = None
+    cpt_code: str | None = None
+    cups_code: str | None = None
+
+
 class ServiceCatalogResponse(BaseModel):
     """Respuesta de servicio."""
     id: uuid.UUID
@@ -212,6 +224,48 @@ class InsuranceClaimResponse(BaseModel):
     submitted_at: datetime | None = None
     adjudicated_at: datetime | None = None
     denial_reason: str | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# =============================================
+# Contratos con Aseguradoras
+# =============================================
+
+class InsurerContractCreate(BaseModel):
+    """Creacion de contrato con aseguradora."""
+    insurer_name: str = Field(max_length=200)
+    insurer_code: str = Field(max_length=50)
+    contract_number: str = Field(max_length=50)
+    effective_date: date
+    expiration_date: date | None = None
+    terms_json: dict[str, Any] | None = None
+    adjudication_rules_json: dict[str, Any] | None = None
+    status: str = "active"
+
+
+class InsurerContractUpdate(BaseModel):
+    """Actualizacion de contrato con aseguradora."""
+    insurer_name: str | None = None
+    insurer_code: str | None = None
+    contract_number: str | None = None
+    effective_date: date | None = None
+    expiration_date: date | None = None
+    terms_json: dict[str, Any] | None = None
+    adjudication_rules_json: dict[str, Any] | None = None
+    status: str | None = None
+
+
+class InsurerContractResponse(BaseModel):
+    """Respuesta de contrato con aseguradora."""
+    id: uuid.UUID
+    insurer_name: str
+    insurer_code: str
+    contract_number: str
+    effective_date: date
+    expiration_date: date | None = None
+    status: str
     created_at: datetime
 
     model_config = {"from_attributes": True}

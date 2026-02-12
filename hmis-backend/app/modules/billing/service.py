@@ -14,6 +14,7 @@ from app.modules.billing.models import (
     ChargeItem,
     FiscalConfig,
     InsuranceClaim,
+    InsurerContract,
     Invoice,
     InvoiceLine,
     Payment,
@@ -23,6 +24,7 @@ from app.modules.billing.schemas import (
     ChargeItemCreate,
     InsuranceClaimCreate,
     InsuranceClaimStatusUpdate,
+    InsurerContractCreate,
     InvoiceCreate,
     PaymentCreate,
 )
@@ -472,6 +474,69 @@ class InsuranceClaimService:
         result = await self.db.execute(stmt)
         count = (result.scalar() or 0) + 1
         return f"CLM-{count:08d}"
+
+
+class InsurerContractService:
+    """Servicio de gestion de contratos con aseguradoras."""
+
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    async def create_contract(
+        self, data: InsurerContractCreate, created_by: uuid.UUID | None = None
+    ) -> InsurerContract:
+        contract = InsurerContract(**data.model_dump(), created_by=created_by)
+        self.db.add(contract)
+        await self.db.flush()
+        return contract
+
+    async def get_contract(self, contract_id: uuid.UUID) -> InsurerContract | None:
+        stmt = select(InsurerContract).where(
+            InsurerContract.id == contract_id, InsurerContract.is_active == True
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def list_contracts(
+        self, status: str | None = None, offset: int = 0, limit: int = 50,
+    ) -> tuple[list[InsurerContract], int]:
+        stmt = select(InsurerContract).where(InsurerContract.is_active == True)
+        count_stmt = select(func.count()).select_from(InsurerContract).where(InsurerContract.is_active == True)
+
+        if status:
+            stmt = stmt.where(InsurerContract.status == status)
+            count_stmt = count_stmt.where(InsurerContract.status == status)
+
+        count_result = await self.db.execute(count_stmt)
+        total = count_result.scalar() or 0
+
+        stmt = stmt.offset(offset).limit(limit).order_by(InsurerContract.insurer_name)
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all()), total
+
+    async def update_contract(
+        self, contract_id: uuid.UUID, data: dict, updated_by: uuid.UUID | None = None
+    ) -> InsurerContract | None:
+        contract = await self.get_contract(contract_id)
+        if not contract:
+            return None
+        for field, value in data.items():
+            if value is not None:
+                setattr(contract, field, value)
+        contract.updated_by = updated_by
+        await self.db.flush()
+        return contract
+
+    async def delete_contract(
+        self, contract_id: uuid.UUID, updated_by: uuid.UUID | None = None
+    ) -> bool:
+        contract = await self.get_contract(contract_id)
+        if not contract:
+            return False
+        contract.is_active = False
+        contract.updated_by = updated_by
+        await self.db.flush()
+        return True
 
 
 class InvoiceVoidService:

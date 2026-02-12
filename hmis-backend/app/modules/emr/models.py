@@ -79,6 +79,9 @@ class Encounter(Base, BaseEntity):
     medical_orders: Mapped[list["MedicalOrder"]] = relationship(
         back_populates="encounter", cascade="all, delete-orphan"
     )
+    attachments: Mapped[list["EncounterAttachment"]] = relationship(
+        back_populates="encounter", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         Index("ix_encounters_patient_date", "patient_id", "start_datetime"),
@@ -278,6 +281,36 @@ class ClinicalTemplate(Base, BaseEntity):
     ui_layout_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     is_default: Mapped[bool] = mapped_column(default=False)
+
+
+class EncounterAttachment(Base, BaseEntity):
+    """
+    Archivo adjunto a un encuentro clínico (imágenes, PDFs, resultados de laboratorio).
+    Los archivos se almacenan en S3/MinIO; aquí solo se guarda la referencia.
+    """
+
+    __tablename__ = "encounter_attachments"
+
+    encounter_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("encounters.id"), nullable=False
+    )
+    file_key: Mapped[str] = mapped_column(String(500), nullable=False)
+    file_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    file_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    file_size: Mapped[int] = mapped_column(Integer, nullable=False)  # bytes
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    category: Mapped[str] = mapped_column(
+        String(30), default="general"
+    )  # general, lab_result, imaging, consent, referral
+
+    uploaded_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+
+    # Relaciones
+    encounter: Mapped["Encounter"] = relationship(back_populates="attachments")
+
+    __table_args__ = (
+        Index("ix_encounter_attachments_encounter", "encounter_id"),
+    )
 
 
 class PatientProblemList(Base, BaseEntity):

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Pill, Calendar, User, RefreshCw, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 
 const PORTAL_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
@@ -75,12 +76,12 @@ export default function PortalPrescriptionsPage() {
         throw new Error(data.detail);
       }
 
-      alert('Refill request submitted successfully');
+      toast.success('Refill request submitted successfully');
       setRefillRequestId(null);
       setRefillNotes('');
       fetchPrescriptions();
     } catch (err: any) {
-      alert(err.message || 'Failed to request refill');
+      toast.error(err.message || 'Failed to request refill');
     }
   };
 

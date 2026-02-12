@@ -69,6 +69,16 @@ class ScheduleTemplateResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ScheduleTemplateUpdate(BaseModel):
+    """Actualizacion de plantilla de horario."""
+    day_of_week: int | None = Field(default=None, ge=0, le=6)
+    start_time: time | None = None
+    end_time: time | None = None
+    slot_duration_min: int | None = Field(default=None, ge=10, le=120)
+    max_overbooking: int | None = Field(default=None, ge=0, le=5)
+    is_active: bool | None = None
+
+
 class ScheduleBlockCreate(BaseModel):
     """Creacion de bloqueo de agenda."""
     provider_id: uuid.UUID
@@ -76,6 +86,19 @@ class ScheduleBlockCreate(BaseModel):
     end_datetime: datetime
     reason: str = Field(max_length=50)
     description: str | None = None
+
+
+class ScheduleBlockResponse(BaseModel):
+    """Respuesta de bloqueo de agenda."""
+    id: uuid.UUID
+    provider_id: uuid.UUID
+    start_datetime: datetime
+    end_datetime: datetime
+    reason: str
+    description: str | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
 
 
 class AvailableSlot(BaseModel):

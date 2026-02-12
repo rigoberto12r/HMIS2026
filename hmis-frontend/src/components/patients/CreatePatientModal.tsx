@@ -5,6 +5,7 @@ import { Modal } from '@/components/ui/modal';
 import { Input, Select } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { useCreatePatient, type PatientCreateData } from '@/hooks/usePatients';
 
 interface CreatePatientModalProps {
@@ -79,6 +80,7 @@ export function CreatePatientModal({ isOpen, onClose }: CreatePatientModalProps)
 
     try {
       await createPatient.mutateAsync(formData);
+      toast.success('Paciente registrado exitosamente');
       setFormData(emptyForm);
       setFormError(null);
       onClose();

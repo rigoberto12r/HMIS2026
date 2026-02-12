@@ -578,6 +578,20 @@ class ClinicalTemplateService:
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
+    async def update_template(
+        self, template_id: uuid.UUID, data: dict, updated_by: uuid.UUID | None = None
+    ) -> ClinicalTemplate | None:
+        """Actualiza una plantilla clinica."""
+        template = await self.get_template(template_id)
+        if not template:
+            return None
+        for field, value in data.items():
+            if value is not None:
+                setattr(template, field, value)
+        template.updated_by = updated_by
+        await self.db.flush()
+        return template
+
     async def delete_template(
         self, template_id: uuid.UUID, updated_by: uuid.UUID | None = None
     ) -> bool:

@@ -45,6 +45,10 @@ global.localStorage = {
   }),
 }
 
+// Mock HTMLDialogElement (not supported by jsdom)
+HTMLDialogElement.prototype.showModal = jest.fn()
+HTMLDialogElement.prototype.close = jest.fn()
+
 // Mock window.matchMedia
 Object.defineProperty(window, 'matchMedia', {
   writable: true,

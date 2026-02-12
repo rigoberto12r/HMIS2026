@@ -6,20 +6,25 @@ Encuentros, notas clinicas, diagnosticos, signos vitales, alergias y ordenes.
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi.responses import RedirectResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.modules.auth.dependencies import get_current_active_user, require_permissions, require_roles
 from app.modules.auth.models import User
+from app.modules.emr.models import EncounterAttachment
 from app.modules.emr.schemas import (
     AllergyCreate,
     AllergyResponse,
     AllergyUpdate,
+    AttachmentResponse,
     ClinicalNoteCreate,
     ClinicalNoteResponse,
     ClinicalTemplateCreate,
     ClinicalTemplateResponse,
+    ClinicalTemplateUpdate,
     DiagnosisCreate,
     DiagnosisResponse,
     DiagnosisUpdate,
@@ -36,6 +41,7 @@ from app.modules.emr.schemas import (
     VitalSignsCreate,
     VitalSignsResponse,
 )
+from app.integrations.storage import get_storage_service
 from app.modules.emr.service import (
     AllergyService,
     ClinicalNoteService,
@@ -521,6 +527,22 @@ async def get_template(
     return ClinicalTemplateResponse.model_validate(template)
 
 
+@router.patch("/templates/{template_id}", response_model=ClinicalTemplateResponse)
+async def update_template(
+    template_id: uuid.UUID,
+    data: ClinicalTemplateUpdate,
+    current_user: User = Depends(require_roles("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Actualizar una plantilla clinica (solo admin)."""
+    service = ClinicalTemplateService(db)
+    update_data = data.model_dump(exclude_unset=True)
+    template = await service.update_template(template_id, update_data, updated_by=current_user.id)
+    if not template:
+        raise HTTPException(status_code=404, detail="Plantilla no encontrada")
+    return ClinicalTemplateResponse.model_validate(template)
+
+
 @router.delete("/templates/{template_id}", response_model=MessageResponse)
 async def delete_template(
     template_id: uuid.UUID,
@@ -533,3 +555,132 @@ async def delete_template(
     if not deleted:
         raise HTTPException(status_code=404, detail="Plantilla no encontrada")
     return MessageResponse(message="Plantilla eliminada")
+
+
+# =============================================
+# Archivos Adjuntos
+# =============================================
+
+@router.post(
+    "/encounters/{encounter_id}/attachments",
+    response_model=AttachmentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_attachment(
+    encounter_id: uuid.UUID,
+    file: UploadFile = File(...),
+    description: str | None = Query(default=None),
+    category: str = Query(default="general"),
+    current_user: User = Depends(require_permissions("encounters:write")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Subir un archivo adjunto a un encuentro clínico."""
+    from app.core.database import current_tenant
+
+    # Validar que el encuentro existe
+    service = EncounterService(db)
+    encounter = await service.get_encounter(encounter_id)
+    if not encounter:
+        raise HTTPException(status_code=404, detail="Encuentro no encontrado")
+
+    # Leer contenido
+    content = await file.read()
+    if len(content) == 0:
+        raise HTTPException(status_code=400, detail="El archivo está vacío")
+
+    storage = get_storage_service()
+    tenant_id = current_tenant.get() or "public"
+    key = storage.generate_key(tenant_id, "attachments", file.filename or "file")
+
+    try:
+        result = await storage.upload_file(
+            file_content=content,
+            key=key,
+            content_type=file.content_type or "application/octet-stream",
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # Crear registro en BD
+    attachment = EncounterAttachment(
+        encounter_id=encounter_id,
+        file_key=result["file_key"],
+        file_name=file.filename or "file",
+        file_type=file.content_type or "application/octet-stream",
+        file_size=result["file_size"],
+        description=description,
+        category=category,
+        uploaded_by=current_user.id,
+        created_by=current_user.id,
+    )
+    db.add(attachment)
+    await db.commit()
+    await db.refresh(attachment)
+
+    return AttachmentResponse.model_validate(attachment)
+
+
+@router.get(
+    "/encounters/{encounter_id}/attachments",
+    response_model=list[AttachmentResponse],
+)
+async def list_attachments(
+    encounter_id: uuid.UUID,
+    current_user: User = Depends(require_permissions("encounters:read")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Listar archivos adjuntos de un encuentro."""
+    result = await db.execute(
+        select(EncounterAttachment)
+        .where(
+            EncounterAttachment.encounter_id == encounter_id,
+            EncounterAttachment.is_active == True,
+        )
+        .order_by(EncounterAttachment.created_at.desc())
+    )
+    attachments = result.scalars().all()
+    return [AttachmentResponse.model_validate(a) for a in attachments]
+
+
+@router.get("/attachments/{attachment_id}/download")
+async def download_attachment(
+    attachment_id: uuid.UUID,
+    current_user: User = Depends(require_permissions("encounters:read")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Obtener URL pre-firmada para descargar un archivo adjunto."""
+    result = await db.execute(
+        select(EncounterAttachment).where(EncounterAttachment.id == attachment_id)
+    )
+    attachment = result.scalar_one_or_none()
+    if not attachment:
+        raise HTTPException(status_code=404, detail="Archivo no encontrado")
+
+    storage = get_storage_service()
+    url = await storage.get_presigned_url(attachment.file_key, expires_in=3600)
+    return RedirectResponse(url=url, status_code=307)
+
+
+@router.delete("/attachments/{attachment_id}", response_model=MessageResponse)
+async def delete_attachment(
+    attachment_id: uuid.UUID,
+    current_user: User = Depends(require_permissions("encounters:write")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Eliminar un archivo adjunto (soft delete + eliminar de S3)."""
+    result = await db.execute(
+        select(EncounterAttachment).where(EncounterAttachment.id == attachment_id)
+    )
+    attachment = result.scalar_one_or_none()
+    if not attachment:
+        raise HTTPException(status_code=404, detail="Archivo no encontrado")
+
+    # Eliminar de S3
+    storage = get_storage_service()
+    await storage.delete_file(attachment.file_key)
+
+    # Soft delete en BD
+    attachment.is_active = False
+    await db.commit()
+
+    return MessageResponse(message="Archivo eliminado")

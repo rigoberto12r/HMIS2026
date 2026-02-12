@@ -7,6 +7,7 @@
 
 import { useState } from 'react';
 import { Edit, Droplets, AlertCircle, Download } from 'lucide-react';
+import { toast } from 'sonner';
 import { StatusBadge, Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { Patient, Allergy } from '@/hooks/usePatientDetail';
@@ -58,7 +59,7 @@ export function PatientHeader({ patient, allergies }: Props) {
       a.remove();
       URL.revokeObjectURL(url);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Error al exportar CCD');
+      toast.error(err instanceof Error ? err.message : 'Error al exportar CCD');
     } finally {
       setExporting(false);
     }

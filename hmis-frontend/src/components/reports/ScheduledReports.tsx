@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Plus, Clock, Mail, Play, Edit, Trash2, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { toast } from 'sonner';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -101,12 +102,12 @@ export function ScheduledReports({ reportDefinitions }: Props) {
 
   const handleSave = async () => {
     if (!reportDefinitionId) {
-      alert('Please select a report');
+      toast.warning('Please select a report');
       return;
     }
 
     if (!recipients.trim()) {
-      alert('Please enter at least one email recipient');
+      toast.warning('Please enter at least one email recipient');
       return;
     }
 
@@ -116,7 +117,7 @@ export function ScheduledReports({ reportDefinitions }: Props) {
       .filter((email) => email.length > 0);
 
     if (recipientList.length === 0) {
-      alert('Please enter valid email addresses');
+      toast.warning('Please enter valid email addresses');
       return;
     }
 
@@ -148,7 +149,7 @@ export function ScheduledReports({ reportDefinitions }: Props) {
       loadScheduledReports();
     } catch (error: any) {
       console.error('Failed to save scheduled report:', error);
-      alert(error.response?.data?.detail || 'Failed to save scheduled report');
+      toast.error(error.response?.data?.detail || 'Failed to save scheduled report');
     } finally {
       setSaving(false);
     }
@@ -163,16 +164,23 @@ export function ScheduledReports({ reportDefinitions }: Props) {
     }
   };
 
-  const handleDelete = async (scheduleId: string) => {
-    if (!confirm('Are you sure you want to delete this scheduled report?')) {
-      return;
-    }
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
+  const handleDelete = async (scheduleId: string) => {
+    setConfirmDeleteId(scheduleId);
+  };
+
+  const confirmDelete = async () => {
+    if (!confirmDeleteId) return;
     try {
-      await api.delete(`/reports/scheduled/${scheduleId}`);
+      await api.delete(`/reports/scheduled/${confirmDeleteId}`);
       loadScheduledReports();
+      toast.success('Scheduled report deleted');
     } catch (error) {
       console.error('Failed to delete scheduled report:', error);
+      toast.error('Failed to delete scheduled report');
+    } finally {
+      setConfirmDeleteId(null);
     }
   };
 
@@ -303,6 +311,27 @@ export function ScheduledReports({ reportDefinitions }: Props) {
             </Card>
           ))}
         </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {confirmDeleteId && (
+        <Modal
+          isOpen={true}
+          onClose={() => setConfirmDeleteId(null)}
+          title="Confirm Deletion"
+        >
+          <p className="text-sm text-gray-600 mb-6">
+            Are you sure you want to delete this scheduled report? This action cannot be undone.
+          </p>
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => setConfirmDeleteId(null)} className="flex-1">
+              Cancel
+            </Button>
+            <Button onClick={confirmDelete} className="flex-1 bg-red-600 hover:bg-red-700 text-white">
+              Delete
+            </Button>
+          </div>
+        </Modal>
       )}
 
       {/* Schedule Modal */}

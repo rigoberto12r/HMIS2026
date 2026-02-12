@@ -18,6 +18,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.pool import StaticPool
 
 # =============================================
 # Compatibilidad SQLite: tipos PostgreSQL no soportados nativamente.
@@ -42,18 +43,23 @@ import app.modules.smart.models  # noqa: F401
 import app.modules.cds.models  # noqa: F401
 # Import Medication Reconciliation models so Base.metadata includes their tables
 import app.modules.pharmacy.med_rec_models  # noqa: F401
+# Import Report models so Base.metadata includes their tables
+import app.modules.reports.models  # noqa: F401
+# Import Portal models so Base.metadata includes their tables
+import app.modules.portal.models  # noqa: F401
 
 
 # =============================================
 # Base de datos de prueba (SQLite async en memoria)
 # =============================================
 
-TEST_DATABASE_URL = "sqlite+aiosqlite:///./test.db"
+TEST_DATABASE_URL = "sqlite+aiosqlite://"
 
 test_engine = create_async_engine(
     TEST_DATABASE_URL,
     echo=False,
     connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
 )
 TestSessionLocal = async_sessionmaker(
     test_engine, class_=AsyncSession, expire_on_commit=False
@@ -80,6 +86,7 @@ def event_loop():
 async def setup_database():
     """Crea las tablas antes de cada test y las limpia despues."""
     async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
     yield
     async with test_engine.begin() as conn:
@@ -183,6 +190,8 @@ def auth_headers() -> dict:
 
 # =============================================
 # Fixtures de entidades de prueba en BD
+# Se usa override_get_db directamente para garantizar que los datos
+# sean visibles para la API (misma sessionmaker, commits al mismo file).
 # =============================================
 
 @pytest.fixture

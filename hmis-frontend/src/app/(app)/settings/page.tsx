@@ -8,6 +8,13 @@ import { Input, Select, Textarea } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
 import { api } from '@/lib/api';
 import { SmartAppsModal } from '@/components/settings/SmartAppsModal';
+import { UsersSection } from '@/components/settings/UsersSection';
+import { ServiceCatalogSection } from '@/components/settings/ServiceCatalogSection';
+import { FiscalConfigSection } from '@/components/settings/FiscalConfigSection';
+import { ClinicalTemplatesSection } from '@/components/settings/ClinicalTemplatesSection';
+import { ScheduleSection } from '@/components/settings/ScheduleSection';
+import { InsuranceSection } from '@/components/settings/InsuranceSection';
+import { IntegrationsSection } from '@/components/settings/IntegrationsSection';
 import {
   Building2,
   Users,
@@ -62,6 +69,13 @@ interface SystemHealth {
 export default function SettingsPage() {
   const [showHospitalModal, setShowHospitalModal] = useState(false);
   const [showSmartAppsModal, setShowSmartAppsModal] = useState(false);
+  const [showUsersSection, setShowUsersSection] = useState(false);
+  const [showServicesSection, setShowServicesSection] = useState(false);
+  const [showFiscalSection, setShowFiscalSection] = useState(false);
+  const [showTemplatesSection, setShowTemplatesSection] = useState(false);
+  const [showScheduleSection, setShowScheduleSection] = useState(false);
+  const [showInsuranceSection, setShowInsuranceSection] = useState(false);
+  const [showIntegrationsSection, setShowIntegrationsSection] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -196,8 +210,21 @@ export default function SettingsPage() {
       setShowHospitalModal(true);
     } else if (sectionId === 'smart-apps') {
       setShowSmartAppsModal(true);
+    } else if (sectionId === 'users') {
+      setShowUsersSection(true);
+    } else if (sectionId === 'services') {
+      setShowServicesSection(true);
+    } else if (sectionId === 'fiscal') {
+      setShowFiscalSection(true);
+    } else if (sectionId === 'templates') {
+      setShowTemplatesSection(true);
+    } else if (sectionId === 'schedule') {
+      setShowScheduleSection(true);
+    } else if (sectionId === 'insurance') {
+      setShowInsuranceSection(true);
+    } else if (sectionId === 'integrations') {
+      setShowIntegrationsSection(true);
     }
-    // Las demas secciones se expandiran en futuras versiones
   }
 
   const handleSaveHospital = async () => {
@@ -244,7 +271,7 @@ export default function SettingsPage() {
                 <Card
                   key={section.id}
                   variant="bordered"
-                  className="cursor-pointer hover:border-primary-300 hover:shadow-card-hover transition-all duration-200"
+                  className="cursor-pointer hover:border-primary-300 hover:shadow-card-hover transition-all duration-200 group"
                 >
                   <button
                     className="w-full text-left p-5"
@@ -252,13 +279,13 @@ export default function SettingsPage() {
                   >
                     <div className="flex items-start gap-4">
                       <div
-                        className={`flex-shrink-0 w-10 h-10 rounded-xl ${section.iconBg} flex items-center justify-center`}
+                        className={`flex-shrink-0 w-10 h-10 rounded-xl ${section.iconBg} flex items-center justify-center transition-transform group-hover:scale-110`}
                       >
                         <Icon className={`w-5 h-5 ${section.iconColor}`} />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <h3 className="text-sm font-semibold text-neutral-900">
+                          <h3 className="text-sm font-semibold text-surface-900 dark:text-surface-50">
                             {section.title}
                           </h3>
                           {section.badge && (
@@ -270,11 +297,11 @@ export default function SettingsPage() {
                             </Badge>
                           )}
                         </div>
-                        <p className="text-xs text-neutral-500 leading-relaxed">
+                        <p className="text-xs text-surface-500 leading-relaxed">
                           {section.description}
                         </p>
                       </div>
-                      <ChevronRight className="w-4 h-4 text-neutral-300 flex-shrink-0 mt-1" />
+                      <ChevronRight className="w-4 h-4 text-surface-300 flex-shrink-0 mt-1 group-hover:text-primary-400 transition-colors" />
                     </div>
                   </button>
                 </Card>
@@ -293,12 +320,12 @@ export default function SettingsPage() {
                 return (
                   <div
                     key={setting.id}
-                    className="flex items-center gap-3 p-3 bg-neutral-50 rounded-lg hover:bg-neutral-100 transition-colors cursor-pointer"
+                    className="flex items-center gap-3 p-3 bg-surface-50 dark:bg-surface-200 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-300 transition-colors cursor-pointer"
                   >
-                    <Icon className="w-4 h-4 text-neutral-400 flex-shrink-0" />
+                    <Icon className="w-4 h-4 text-surface-400 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-neutral-700">{setting.label}</p>
-                      <p className="text-xs text-neutral-500 truncate">{setting.value}</p>
+                      <p className="text-sm font-medium text-surface-700 dark:text-surface-300">{setting.label}</p>
+                      <p className="text-xs text-surface-500 truncate">{setting.value}</p>
                     </div>
                   </div>
                 );
@@ -320,10 +347,10 @@ export default function SettingsPage() {
               ].map((item) => (
                 <div
                   key={item.label}
-                  className="flex items-center justify-between py-2 border-b border-neutral-50 last:border-0"
+                  className="flex items-center justify-between py-2 border-b border-surface-50 dark:border-surface-700 last:border-0"
                 >
-                  <span className="text-xs text-neutral-500">{item.label}</span>
-                  <span className="text-xs font-medium text-neutral-900">{item.value}</span>
+                  <span className="text-xs text-surface-500">{item.label}</span>
+                  <span className="text-xs font-medium text-surface-900 dark:text-surface-100">{item.value}</span>
                 </div>
               ))}
             </div>
@@ -426,6 +453,83 @@ export default function SettingsPage() {
 
       {/* SMART Apps Modal */}
       <SmartAppsModal isOpen={showSmartAppsModal} onClose={() => setShowSmartAppsModal(false)} />
+
+      {/* Users Section Modal */}
+      <Modal
+        isOpen={showUsersSection}
+        onClose={() => setShowUsersSection(false)}
+        title="Usuarios y Roles"
+        description="Gestione las cuentas de usuario y sus permisos"
+        size="xl"
+      >
+        <UsersSection />
+      </Modal>
+
+      {/* Service Catalog Modal */}
+      <Modal
+        isOpen={showServicesSection}
+        onClose={() => setShowServicesSection(false)}
+        title="Catálogo de Servicios"
+        description="Configure precios, tarifas e impuestos de servicios médicos"
+        size="xl"
+      >
+        <ServiceCatalogSection />
+      </Modal>
+
+      {/* Fiscal Config Modal */}
+      <Modal
+        isOpen={showFiscalSection}
+        onClose={() => setShowFiscalSection(false)}
+        title="Configuración Fiscal"
+        description="Configure NCF, RNC y parámetros de facturación"
+        size="lg"
+      >
+        <FiscalConfigSection />
+      </Modal>
+
+      {/* Clinical Templates Modal */}
+      <Modal
+        isOpen={showTemplatesSection}
+        onClose={() => setShowTemplatesSection(false)}
+        title="Plantillas Clínicas"
+        description="Gestione plantillas SOAP por especialidad"
+        size="xl"
+      >
+        <ClinicalTemplatesSection />
+      </Modal>
+
+      {/* Schedule & Hours Modal */}
+      <Modal
+        isOpen={showScheduleSection}
+        onClose={() => setShowScheduleSection(false)}
+        title="Horarios y Agenda"
+        description="Configure horarios semanales y bloqueos de agenda"
+        size="xl"
+      >
+        <ScheduleSection />
+      </Modal>
+
+      {/* Insurance Companies Modal */}
+      <Modal
+        isOpen={showInsuranceSection}
+        onClose={() => setShowInsuranceSection(false)}
+        title="Aseguradoras"
+        description="Gestione contratos con aseguradoras (ARS)"
+        size="xl"
+      >
+        <InsuranceSection />
+      </Modal>
+
+      {/* Integrations Modal */}
+      <Modal
+        isOpen={showIntegrationsSection}
+        onClose={() => setShowIntegrationsSection(false)}
+        title="Integraciones"
+        description="Estado de integraciones externas del sistema"
+        size="lg"
+      >
+        <IntegrationsSection />
+      </Modal>
     </div>
   );
 }

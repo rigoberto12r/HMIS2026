@@ -32,11 +32,7 @@ const nextConfig = {
 
   // Experimental features for better performance
   experimental: {
-    optimizePackageImports: ['lucide-react', 'recharts', '@tanstack/react-query'],
-    // Enable server actions for future use
-    serverActions: true,
-    // Optimize CSS
-    optimizeCss: true,
+    optimizePackageImports: ['lucide-react', 'recharts', '@tanstack/react-query', 'framer-motion'],
   },
 
   // Production source maps (smaller)

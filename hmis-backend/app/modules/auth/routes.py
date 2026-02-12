@@ -166,9 +166,49 @@ async def update_user(
     return UserResponse.model_validate(user)
 
 
+@router.delete("/users/{user_id}", response_model=MessageResponse)
+async def delete_user(
+    user_id: uuid.UUID,
+    current_user: User = Depends(require_permissions("users:write")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Desactivar (soft delete) un usuario. No se puede eliminar a sí mismo."""
+    if user_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No puede eliminar su propia cuenta",
+        )
+
+    service = UserService(db)
+    user = await service.get_user(user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
+
+    user.is_active = False
+    await db.flush()
+
+    return MessageResponse(mensaje=f"Usuario {user.email} desactivado exitosamente")
+
+
 # =============================================
 # Roles
 # =============================================
+
+@router.get("/roles", response_model=list[RoleResponse])
+async def list_roles(
+    current_user: User = Depends(require_permissions("users:read")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Listar todos los roles disponibles."""
+    from sqlalchemy import select
+    from app.modules.auth.models import Role
+
+    result = await db.execute(
+        select(Role).where(Role.is_active == True).order_by(Role.name)
+    )
+    roles = result.scalars().all()
+    return [RoleResponse.model_validate(r) for r in roles]
+
 
 @router.post("/roles", response_model=RoleResponse, status_code=status.HTTP_201_CREATED)
 async def create_role(

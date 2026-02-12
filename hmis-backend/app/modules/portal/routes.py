@@ -168,14 +168,45 @@ async def book_appointment(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """
-    Book a new appointment.
+    Book a new appointment from the patient portal.
+    Validates conflict detection (no double-booking).
     """
-    # TODO: Implement appointment booking logic
-    # For now, return placeholder
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Appointment booking is not yet implemented. Please call the office to book.",
+    from datetime import timedelta
+    from app.modules.appointments.schemas import AppointmentCreate
+    from app.modules.appointments.service import AppointmentService
+    from app.shared.exceptions import ConflictError
+
+    # Default appointment duration: 30 minutes
+    scheduled_end = data.scheduled_start + timedelta(minutes=30)
+
+    appointment_data = AppointmentCreate(
+        patient_id=patient_id,
+        provider_id=data.provider_id,
+        appointment_type=data.appointment_type,
+        scheduled_start=data.scheduled_start,
+        scheduled_end=scheduled_end,
+        reason=data.reason,
+        source="portal",
     )
+
+    try:
+        service = AppointmentService(db)
+        appointment = await service.create_appointment(appointment_data)
+        await db.commit()
+
+        return {
+            "message": "Cita agendada exitosamente",
+            "appointment_id": str(appointment.id),
+            "scheduled_start": appointment.scheduled_start.isoformat(),
+            "scheduled_end": appointment.scheduled_end.isoformat(),
+        }
+    except ConflictError as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(e),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.post("/appointments/{appointment_id}/cancel", response_model=dict)
@@ -286,17 +317,22 @@ async def request_refill(
 # ============= Lab Results =============
 
 
-@router.get("/lab-results", response_model=list[dict])
+@router.get("/lab-results", response_model=dict)
 async def get_lab_results(
     patient_id: Annotated[uuid.UUID, Depends(get_portal_patient_id)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """
     Get patient's lab results.
+    Laboratory module is not yet available. Returns a graceful empty state.
     """
-    # TODO: Implement lab results retrieval
-    # For now, return empty list
-    return []
+    return {
+        "items": [],
+        "total": 0,
+        "message": "El módulo de laboratorio estará disponible próximamente. "
+        "Consulte con su médico para obtener resultados de laboratorio.",
+        "module_status": "coming_soon",
+    }
 
 
 # ============= Billing =============
@@ -334,13 +370,66 @@ async def pay_invoice(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """
-    Initiate payment for an invoice.
+    Initiate Stripe payment for an invoice.
+    Returns a client_secret for Stripe Elements on the frontend.
     """
-    # TODO: Integrate with payment gateway
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Online payment is not yet implemented. Please pay at the office or call for payment options.",
+    from sqlalchemy import select as sa_select
+    from app.modules.billing.models import Invoice
+    from app.modules.patients.models import Patient
+
+    # Get invoice and verify it belongs to this patient
+    invoice = await db.scalar(
+        sa_select(Invoice).where(
+            Invoice.id == invoice_id,
+            Invoice.patient_id == patient_id,
+        )
     )
+
+    if not invoice:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Factura no encontrada",
+        )
+
+    if invoice.status == "paid":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Esta factura ya fue pagada",
+        )
+
+    if invoice.status in ("voided", "cancelled"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Esta factura fue anulada y no puede pagarse",
+        )
+
+    # Get patient info for Stripe customer
+    patient = await db.get(Patient, patient_id)
+
+    try:
+        from app.integrations.payments.stripe_service import StripePaymentService
+
+        stripe_service = StripePaymentService(db)
+        result = await stripe_service.create_payment_intent(
+            amount=float(invoice.balance_due or invoice.total_amount),
+            currency=getattr(invoice, "currency", "DOP").lower(),
+            invoice_id=invoice.id,
+            patient_id=patient_id,
+            customer_email=patient.email if patient else None,
+            customer_name=patient.full_name if patient else None,
+        )
+
+        return {
+            "client_secret": result["client_secret"],
+            "payment_intent_id": result["payment_intent_id"],
+            "amount": result["amount"],
+            "currency": result["currency"],
+        }
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Servicio de pagos no disponible: {str(e)}",
+        )
 
 
 # ============= Dashboard =============

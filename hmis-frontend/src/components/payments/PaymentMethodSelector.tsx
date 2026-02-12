@@ -9,6 +9,7 @@ import { useState } from 'react';
 import { CreditCard, Trash2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { toast } from 'sonner';
 
 interface PaymentMethod {
   id: string;
@@ -38,15 +39,23 @@ export default function PaymentMethodSelector({
   onAddNew,
 }: PaymentMethodSelectorProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  const handleDelete = async (methodId: string) => {
-    if (confirm('Are you sure you want to remove this payment method?')) {
-      setDeletingId(methodId);
-      try {
-        await onDelete(methodId);
-      } finally {
-        setDeletingId(null);
-      }
+  const handleDelete = (methodId: string) => {
+    setConfirmDeleteId(methodId);
+  };
+
+  const confirmDeleteMethod = async () => {
+    if (!confirmDeleteId) return;
+    setDeletingId(confirmDeleteId);
+    setConfirmDeleteId(null);
+    try {
+      await onDelete(confirmDeleteId);
+      toast.success('Payment method removed');
+    } catch {
+      toast.error('Failed to remove payment method');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -127,6 +136,26 @@ export default function PaymentMethodSelector({
               )}
             </Card>
           ))}
+        </div>
+      )}
+
+      {/* Delete Confirmation */}
+      {confirmDeleteId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-sm w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Remove Payment Method</h3>
+            <p className="text-sm text-gray-600 mb-6">
+              Are you sure you want to remove this payment method?
+            </p>
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={() => setConfirmDeleteId(null)} className="flex-1">
+                Cancel
+              </Button>
+              <Button onClick={confirmDeleteMethod} className="flex-1 bg-red-600 hover:bg-red-700 text-white">
+                Remove
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>
