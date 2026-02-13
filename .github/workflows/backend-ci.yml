@@ -46,7 +46,6 @@ jobs:
 
       - name: Run MyPy type checker
         run: mypy app --ignore-missing-imports
-        continue-on-error: true
 
   test:
     name: Run Tests
@@ -110,7 +109,6 @@ jobs:
           file: ./hmis-backend/coverage.xml
           flags: backend
           name: backend-coverage
-        continue-on-error: true
 
   security-scan:
     name: Security Scan
@@ -132,8 +130,6 @@ jobs:
 
       - name: Check for vulnerabilities in dependencies
         run: safety check --file=requirements.txt --output text
-        continue-on-error: true
 
       - name: Run Bandit security linter
         run: bandit -r app -ll -f txt
-        continue-on-error: true

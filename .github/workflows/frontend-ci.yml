@@ -40,7 +40,6 @@ jobs:
 
       - name: Run TypeScript type check
         run: npx tsc --noEmit
-        continue-on-error: true
 
   build:
     name: Build Application
@@ -64,7 +63,6 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
         run: npm run build
-        continue-on-error: true
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -93,7 +91,6 @@ jobs:
 
       - name: Run tests
         run: npm test -- --passWithNoTests
-        continue-on-error: true
 
   bundle-analysis:
     name: Bundle Size Analysis
@@ -119,4 +116,3 @@ jobs:
         run: |
           npm run build
           npx next-bundle-analyzer || echo "Bundle analysis completed"
-        continue-on-error: true
