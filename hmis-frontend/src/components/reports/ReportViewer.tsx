@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Modal } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { DataTable, type Column } from '@/components/ui/data-table';
@@ -40,11 +40,7 @@ export function ReportViewer({ executionId, onClose }: Props) {
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => {
-    loadExecutionResult();
-  }, [executionId]);
-
-  const loadExecutionResult = async () => {
+  const loadExecutionResult = useCallback(async () => {
     setLoading(true);
     try {
       const data = await api.get<ReportResult>(`/reports/executions/${executionId}`);
@@ -59,7 +55,11 @@ export function ReportViewer({ executionId, onClose }: Props) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [executionId]);
+
+  useEffect(() => {
+    loadExecutionResult();
+  }, [loadExecutionResult]);
 
   const handleDownload = async (format: 'csv' | 'excel' | 'pdf') => {
     try {

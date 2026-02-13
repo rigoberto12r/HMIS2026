@@ -49,7 +49,7 @@ describe('ErrorBoundary', () => {
   });
 
   afterEach(() => {
-    window.location = originalLocation;
+    (window as any).location = originalLocation;
     delete (window as any).Sentry;
   });
 
@@ -90,7 +90,7 @@ describe('ErrorBoundary', () => {
 
     it('should display error message in development mode', () => {
       const originalEnv = process.env.NODE_ENV;
-      process.env.NODE_ENV = 'development';
+      (process.env as any).NODE_ENV = 'development';
 
       render(
         <ErrorBoundary>
@@ -100,12 +100,12 @@ describe('ErrorBoundary', () => {
 
       expect(screen.getByText(/Detalles tecnicos/i)).toBeInTheDocument();
 
-      process.env.NODE_ENV = originalEnv;
+      (process.env as any).NODE_ENV = originalEnv;
     });
 
     it('should hide error details in production mode', () => {
       const originalEnv = process.env.NODE_ENV;
-      process.env.NODE_ENV = 'production';
+      (process.env as any).NODE_ENV = 'production';
 
       render(
         <ErrorBoundary>
@@ -115,7 +115,7 @@ describe('ErrorBoundary', () => {
 
       expect(screen.queryByText(/Detalles tecnicos/i)).not.toBeInTheDocument();
 
-      process.env.NODE_ENV = originalEnv;
+      (process.env as any).NODE_ENV = originalEnv;
     });
 
     it('should log error to console', () => {
@@ -326,7 +326,7 @@ describe('ErrorBoundary', () => {
   describe('Development mode details', () => {
     it('should show component stack in development', () => {
       const originalEnv = process.env.NODE_ENV;
-      process.env.NODE_ENV = 'development';
+      (process.env as any).NODE_ENV = 'development';
 
       render(
         <ErrorBoundary>
@@ -343,7 +343,7 @@ describe('ErrorBoundary', () => {
       // Error message should be visible
       expect(screen.getByText(/Error: Stack trace test/i)).toBeInTheDocument();
 
-      process.env.NODE_ENV = originalEnv;
+      (process.env as any).NODE_ENV = originalEnv;
     });
   });
 

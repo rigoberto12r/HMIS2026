@@ -1,23 +1,24 @@
 'use client';
 
 import { Loader2, AlertCircle } from 'lucide-react';
-import { Card } from '@/components/ui/card';
-import { MotionStagger, MotionStaggerItem } from '@/components/ui/motion';
 import {
   useDashboardPatients,
   useDashboardAppointments,
   useDashboardInvoices,
   useARAgingReport,
 } from '@/hooks/useDashboard';
-import { DashboardKPIs } from './components/DashboardKPIs';
-import { DashboardGreeting } from './components/DashboardGreeting';
-import { DailyProgress } from './components/DailyProgress';
-import { ActivityFeed } from './components/ActivityFeed';
-import { WeeklyPatientsChart } from './components/WeeklyPatientsChart';
-import { ARAgingChart } from './components/ARAgingChart';
-import { AppointmentsPieChart } from './components/AppointmentsPieChart';
-import { RecentActivity } from './components/RecentActivity';
-import { GeneralSummary } from './components/GeneralSummary';
+import { deriveHourlyDistribution } from './utils';
+import { HealthOSGreeting } from './components/HealthOSGreeting';
+import { HealthOSKPIs } from './components/HealthOSKPIs';
+import { ClinicalActivity } from './components/ClinicalActivity';
+import { InsightsChart } from './components/InsightsChart';
+import { QuickActions } from './components/QuickActions';
+import { AIAssistantPanel } from './components/AIAssistantPanel';
+import { RevenueChart } from './components/RevenueChart';
+import { TopDiagnosesChart } from './components/TopDiagnosesChart';
+import { AlertsPanel } from './components/AlertsPanel';
+import { RecentActivityTimeline } from './components/RecentActivityTimeline';
+import { DashboardSkeleton } from './components/DashboardSkeleton';
 
 export default function DashboardPage() {
   const { data: patientsData, isLoading: loadingPatients } = useDashboardPatients();
@@ -25,107 +26,91 @@ export default function DashboardPage() {
   const { data: invoicesData, isLoading: loadingInvoices } = useDashboardInvoices();
   const { data: arReport, isLoading: loadingAR } = useARAgingReport();
 
-  const patients = patientsData?.items ?? [];
   const totalPatients = patientsData?.total ?? 0;
   const appointments = appointmentsData?.items ?? [];
-  const totalAppointments = appointmentsData?.total ?? 0;
   const invoices = invoicesData?.items ?? [];
-  const totalInvoices = invoicesData?.total ?? 0;
-
-  const ingresosMes = invoices.reduce((sum, inv) => sum + (inv.grand_total || 0), 0);
-  const cuentasPorCobrar = arReport?.total_receivable ?? 0;
 
   const loading = loadingPatients || loadingAppointments || loadingInvoices || loadingAR;
-
-  // Calculate daily progress
-  const completedToday = appointments.filter(
-    (a) => a.status === 'completada' || a.status === 'completed'
-  ).length;
-  const totalToday = appointments.length || 12;
+  const hourlyData = deriveHourlyDistribution(appointments);
 
   if (loading && !patientsData && !appointmentsData) {
-    return (
-      <div className="space-y-6">
-        <DashboardGreeting />
-        <div className="flex items-center justify-center py-20">
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center animate-pulse">
-              <Loader2 className="w-5 h-5 text-white animate-spin" />
-            </div>
-            <p className="text-sm text-surface-500">Cargando datos del panel...</p>
-          </div>
-        </div>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   if (!loading && !patientsData && !appointmentsData && !invoicesData && !arReport) {
     return (
-      <div className="space-y-6">
-        <DashboardGreeting />
-        <Card>
-          <div className="flex flex-col items-center justify-center py-12 gap-3">
-            <AlertCircle className="w-10 h-10 text-red-400" />
-            <p className="text-sm text-surface-700 dark:text-surface-300 font-medium">
-              No se pudo conectar con el servidor. Verifique su conexion.
-            </p>
-          </div>
-        </Card>
+      <div
+        className="-m-4 lg:-m-6 min-h-[calc(100vh-4rem)] flex items-center justify-center"
+        style={{ background: `rgb(var(--hos-bg-primary))` }}
+      >
+        <div className="flex flex-col items-center gap-3">
+          <AlertCircle className="w-10 h-10 text-rose-400/60" />
+          <p className="text-sm text-white/50 font-medium">
+            No se pudo conectar con el servidor. Verifique su conexion.
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
-    <MotionStagger className="space-y-6">
-      {/* Header */}
-      <MotionStaggerItem>
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-          <DashboardGreeting />
-          <div className="w-full sm:w-80">
-            <DailyProgress completed={completedToday} total={totalToday} />
-          </div>
-        </div>
-      </MotionStaggerItem>
+    <div
+      className="-m-4 lg:-m-6 p-4 lg:p-6 min-h-[calc(100vh-4rem)]"
+      style={{ background: `rgb(var(--hos-bg-primary))` }}
+    >
+      <div className="space-y-6">
+        {/* Header with personalized greeting */}
+        <HealthOSGreeting />
 
-      {/* KPI Cards */}
-      <MotionStaggerItem>
-        <DashboardKPIs
-          patients={patients}
+        {/* Row 1: KPIs with sparklines and trend indicators */}
+        <HealthOSKPIs
           totalPatients={totalPatients}
           appointments={appointments}
-          totalAppointments={totalAppointments}
           invoices={invoices}
-          totalInvoices={totalInvoices}
           arReport={arReport ?? null}
-          loading={loading}
         />
-      </MotionStaggerItem>
 
-      {/* Charts Row */}
-      <MotionStaggerItem>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 overflow-hidden">
-          <WeeklyPatientsChart totalPatients={totalPatients} />
-          <ARAgingChart arReport={arReport ?? null} invoices={invoices} ingresosMes={ingresosMes} />
+        {/* Row 2: Clinical Activity + AI Smart Panel */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+          <div className="lg:col-span-3">
+            <ClinicalActivity appointments={appointments} />
+          </div>
+          <div className="lg:col-span-2">
+            <AIAssistantPanel
+              appointments={appointments}
+              invoices={invoices}
+              arReport={arReport ?? null}
+              totalPatients={totalPatients}
+            />
+          </div>
         </div>
-      </MotionStaggerItem>
 
-      {/* Bottom Row */}
-      <MotionStaggerItem>
+        {/* Row 3: Hourly Consultation Distribution */}
+        <InsightsChart data={hourlyData} />
+
+        {/* Row 4: Revenue & Diagnoses Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <AppointmentsPieChart appointments={appointments} />
-          <Card>
-            <ActivityFeed />
-          </Card>
-          <GeneralSummary
-            totalPatients={totalPatients}
-            totalAppointments={totalAppointments}
-            totalInvoices={totalInvoices}
-            ingresosMes={ingresosMes}
-            cuentasPorCobrar={cuentasPorCobrar}
+          <div className="lg:col-span-2">
+            <RevenueChart />
+          </div>
+          <div className="lg:col-span-1">
+            <TopDiagnosesChart />
+          </div>
+        </div>
+
+        {/* Row 5: Alerts & Recent Activity */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <AlertsPanel
+            appointments={appointments}
+            invoices={invoices}
             arReport={arReport ?? null}
           />
+          <RecentActivityTimeline appointments={appointments} invoices={invoices} />
         </div>
-      </MotionStaggerItem>
-    </MotionStagger>
+
+        {/* Row 6: Quick Actions */}
+        <QuickActions />
+      </div>
+    </div>
   );
 }

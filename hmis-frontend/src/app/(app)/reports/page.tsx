@@ -64,8 +64,8 @@ export default function ReportsPage() {
 
   const loadReportDefinitions = async () => {
     try {
-      const response = await api.get('/reports/definitions');
-      setReportDefinitions(response.data);
+      const data = await api.get<ReportDefinition[]>('/reports/definitions');
+      setReportDefinitions(data);
     } catch (error) {
       console.error('Failed to load report definitions:', error);
     }

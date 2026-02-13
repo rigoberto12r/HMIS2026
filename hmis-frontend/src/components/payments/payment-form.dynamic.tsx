@@ -23,7 +23,7 @@ function PaymentFormSkeleton() {
 }
 
 export const PaymentFormDynamic = dynamic(
-  () => import('./payment-form').then((mod) => mod.default),
+  () => import('./PaymentForm').then((mod) => ({ default: mod.default })),
   {
     loading: () => <PaymentFormSkeleton />,
     ssr: false,

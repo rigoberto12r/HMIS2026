@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { FileText, Activity, Thermometer, Heart, User, Calendar } from 'lucide-react';
 
 const PORTAL_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
@@ -47,11 +47,7 @@ export default function PortalMedicalRecordsPage() {
   const [vitals, setVitals] = useState<VitalSigns[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    fetchData();
-  }, [activeTab]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
       const token = localStorage.getItem('portal_access_token');
@@ -81,7 +77,11 @@ export default function PortalMedicalRecordsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [activeTab]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   return (
     <div className="max-w-5xl mx-auto">

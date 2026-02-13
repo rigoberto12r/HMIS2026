@@ -14,6 +14,7 @@ export interface Patient {
   document_type: string;
   document_number: string;
   status: string;
+  allergies?: string;
   created_at: string;
 }
 

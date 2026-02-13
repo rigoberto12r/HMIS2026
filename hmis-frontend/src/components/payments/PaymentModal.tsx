@@ -5,7 +5,7 @@
  * Main modal for handling invoice payments with Stripe
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Elements } from '@stripe/react-stripe-js';
 import { loadStripe, StripeElementsOptions } from '@stripe/stripe-js';
 import { X } from 'lucide-react';
@@ -13,6 +13,7 @@ import PaymentForm from './PaymentForm';
 import PaymentMethodSelector from './PaymentMethodSelector';
 import PaymentSuccess from './PaymentSuccess';
 import PaymentError from './PaymentError';
+import type { Invoice } from '@/hooks/useInvoices';
 
 // Initialize Stripe
 const stripePromise = loadStripe(
@@ -20,16 +21,6 @@ const stripePromise = loadStripe(
 );
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
-
-interface Invoice {
-  id: string;
-  invoice_number: string;
-  grand_total: number;
-  currency: string;
-  patient_id: string;
-  customer_email?: string;
-  customer_name?: string;
-}
 
 interface PaymentModalProps {
   invoice: Invoice;
@@ -54,14 +45,7 @@ export default function PaymentModal({
   const [savedMethods, setSavedMethods] = useState<any[]>([]);
   const [selectedMethodId, setSelectedMethodId] = useState<string | null>(null);
 
-  // Fetch saved payment methods
-  useEffect(() => {
-    if (isOpen) {
-      fetchSavedPaymentMethods();
-    }
-  }, [isOpen, invoice.patient_id]);
-
-  const fetchSavedPaymentMethods = async () => {
+  const fetchSavedPaymentMethods = useCallback(async () => {
     try {
       const response = await fetch(
         `${API_BASE_URL}/payments/stripe/customers/patient/${invoice.patient_id}`,
@@ -82,16 +66,16 @@ export default function PaymentModal({
     } catch (err) {
       console.error('Error fetching payment methods:', err);
     }
-  };
+  }, [invoice.patient_id]);
 
-  // Create payment intent
+  // Fetch saved payment methods
   useEffect(() => {
-    if (isOpen && !clientSecret) {
-      createPaymentIntent();
+    if (isOpen) {
+      fetchSavedPaymentMethods();
     }
-  }, [isOpen]);
+  }, [isOpen, fetchSavedPaymentMethods]);
 
-  const createPaymentIntent = async () => {
+  const createPaymentIntent = useCallback(async () => {
     setIsLoading(true);
     try {
       const response = await fetch(`${API_BASE_URL}/payments/stripe/payment-intents`, {
@@ -125,7 +109,14 @@ export default function PaymentModal({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [invoice.id, invoice.patient_id, invoice.grand_total, invoice.currency, invoice.customer_email, invoice.customer_name]);
+
+  // Create payment intent
+  useEffect(() => {
+    if (isOpen && !clientSecret) {
+      createPaymentIntent();
+    }
+  }, [isOpen, clientSecret, createPaymentIntent]);
 
   const handlePaymentSuccess = (intentId: string) => {
     setPaymentIntentId(intentId);

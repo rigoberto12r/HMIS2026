@@ -1,4 +1,16 @@
 import type { Config } from 'tailwindcss';
+import plugin from 'tailwindcss/plugin';
+
+/**
+ * 🎨 HMIS Premium Theme Configuration
+ *
+ * Features:
+ * - Full dark mode support (class-based)
+ * - Custom glass morphism utilities
+ * - Gradient presets
+ * - Theme-aware shadows
+ * - Medical-specific colors
+ */
 
 const config: Config = {
   content: [
@@ -139,9 +151,155 @@ const config: Config = {
         '250': '250ms',
         '350': '350ms',
       },
+      // Add background colors using CSS variables
+      backgroundColor: {
+        'body': 'rgb(var(--bg-body) / <alpha-value>)',
+        'card': 'rgb(var(--bg-card) / <alpha-value>)',
+        'elevated': 'rgb(var(--bg-elevated) / <alpha-value>)',
+        'hover': 'rgb(var(--bg-hover) / <alpha-value>)',
+        'active': 'rgb(var(--bg-active) / <alpha-value>)',
+      },
+      textColor: {
+        'primary': 'rgb(var(--text-primary) / <alpha-value>)',
+        'secondary': 'rgb(var(--text-secondary) / <alpha-value>)',
+        'tertiary': 'rgb(var(--text-tertiary) / <alpha-value>)',
+        'disabled': 'rgb(var(--text-disabled) / <alpha-value>)',
+        'inverse': 'rgb(var(--text-inverse) / <alpha-value>)',
+      },
     },
   },
-  plugins: [],
+  plugins: [
+    // ══════════════════════════════════════════════════════════════
+    // 🎨 Glass Morphism Plugin
+    // ══════════════════════════════════════════════════════════════
+    plugin(({ addUtilities }) => {
+      addUtilities({
+        '.glass-card': {
+          background: 'var(--glass-medium)',
+          backdropFilter: 'blur(var(--glass-backdrop-blur))',
+          WebkitBackdropFilter: 'blur(var(--glass-backdrop-blur))',
+          borderWidth: '1px',
+          borderColor: 'var(--glass-border)',
+        },
+        '.glass-panel': {
+          background: 'var(--glass-strong)',
+          backdropFilter: 'blur(calc(var(--glass-backdrop-blur) * 1.5))',
+          WebkitBackdropFilter: 'blur(calc(var(--glass-backdrop-blur) * 1.5))',
+          borderWidth: '1px',
+          borderColor: 'var(--glass-border)',
+          boxShadow: 'var(--shadow-card-md)',
+        },
+        '.glass-overlay': {
+          background: 'var(--glass-weak)',
+          backdropFilter: 'blur(calc(var(--glass-backdrop-blur) * 0.75))',
+          WebkitBackdropFilter: 'blur(calc(var(--glass-backdrop-blur) * 0.75))',
+          borderWidth: '1px',
+          borderColor: 'var(--glass-border)',
+        },
+      });
+    }),
+
+    // ══════════════════════════════════════════════════════════════
+    // 🎨 Gradient Utilities Plugin
+    // ══════════════════════════════════════════════════════════════
+    plugin(({ addUtilities }) => {
+      addUtilities({
+        '.bg-gradient-primary': {
+          background: 'var(--gradient-primary)',
+        },
+        '.bg-gradient-accent': {
+          background: 'var(--gradient-accent)',
+        },
+        '.bg-gradient-sidebar': {
+          background: 'var(--gradient-sidebar)',
+        },
+        '.bg-gradient-danger': {
+          background: 'var(--gradient-danger)',
+        },
+        '.bg-gradient-success': {
+          background: 'var(--gradient-success)',
+        },
+        '.bg-gradient-warning': {
+          background: 'var(--gradient-warning)',
+        },
+        '.bg-gradient-card-glow': {
+          background: 'var(--gradient-card-glow)',
+        },
+      });
+    }),
+
+    // ══════════════════════════════════════════════════════════════
+    // 🌟 Theme-Aware Shadow Utilities
+    // ══════════════════════════════════════════════════════════════
+    plugin(({ addUtilities }) => {
+      addUtilities({
+        '.shadow-card-sm': {
+          boxShadow: 'var(--shadow-card-sm)',
+        },
+        '.shadow-card-md': {
+          boxShadow: 'var(--shadow-card-md)',
+        },
+        '.shadow-card-lg': {
+          boxShadow: 'var(--shadow-card-lg)',
+        },
+        '.shadow-glow-success': {
+          boxShadow: 'var(--shadow-glow-success)',
+        },
+      });
+    }),
+
+    // ══════════════════════════════════════════════════════════════
+    // 🎨 Premium Card Variants
+    // ══════════════════════════════════════════════════════════════
+    plugin(({ addComponents }) => {
+      addComponents({
+        '.premium-card': {
+          backgroundColor: 'rgb(var(--bg-card))',
+          borderRadius: '1rem',
+          borderWidth: '1px',
+          borderColor: 'rgb(var(--color-surface-200) / 0.5)',
+          padding: '1.25rem',
+          boxShadow: 'var(--shadow-card-md)',
+          transition: 'all 200ms cubic-bezier(0.4, 0, 0.2, 1)',
+          '&:hover': {
+            boxShadow: 'var(--shadow-card-lg)',
+            transform: 'translateY(-2px)',
+          },
+          '@media (prefers-color-scheme: dark)': {
+            borderColor: 'rgb(var(--color-surface-200) / 0.1)',
+          },
+        },
+        '.premium-card-flat': {
+          backgroundColor: 'rgb(var(--bg-card))',
+          borderRadius: '0.75rem',
+          borderWidth: '1px',
+          borderColor: 'rgb(var(--color-surface-200) / 0.5)',
+          padding: '1rem',
+          transition: 'all 200ms cubic-bezier(0.4, 0, 0.2, 1)',
+          '&:hover': {
+            backgroundColor: 'rgb(var(--bg-hover))',
+          },
+        },
+      });
+    }),
+
+    // ══════════════════════════════════════════════════════════════
+    // 🎨 Smooth Theme Transition Utilities
+    // ══════════════════════════════════════════════════════════════
+    plugin(({ addUtilities }) => {
+      addUtilities({
+        '.theme-transition': {
+          transition: 'background-color var(--theme-transition-duration) var(--theme-transition-easing), border-color var(--theme-transition-duration) var(--theme-transition-easing), color var(--theme-transition-duration) var(--theme-transition-easing)',
+        },
+        '.theme-transition-fast': {
+          transition: 'background-color 150ms var(--theme-transition-easing), border-color 150ms var(--theme-transition-easing), color 150ms var(--theme-transition-easing)',
+        },
+        '.theme-transition-slow': {
+          transition: 'background-color 300ms var(--theme-transition-easing), border-color 300ms var(--theme-transition-easing), color 300ms var(--theme-transition-easing)',
+        },
+      });
+    }),
+  ],
 };
 
 export default config;

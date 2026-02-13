@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Pill, Calendar, User, RefreshCw, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -28,11 +28,7 @@ export default function PortalPrescriptionsPage() {
   const [refillRequestId, setRefillRequestId] = useState<string | null>(null);
   const [refillNotes, setRefillNotes] = useState('');
 
-  useEffect(() => {
-    fetchPrescriptions();
-  }, [activeOnly]);
-
-  const fetchPrescriptions = async () => {
+  const fetchPrescriptions = useCallback(async () => {
     setIsLoading(true);
     try {
       const token = localStorage.getItem('portal_access_token');
@@ -52,7 +48,11 @@ export default function PortalPrescriptionsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [activeOnly]);
+
+  useEffect(() => {
+    fetchPrescriptions();
+  }, [fetchPrescriptions]);
 
   const handleRequestRefill = async () => {
     if (!refillRequestId) return;

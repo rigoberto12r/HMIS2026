@@ -63,8 +63,8 @@ export function ReportTemplates({ onExecutionComplete }: Props) {
   const loadTemplates = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/reports/templates');
-      setTemplates(response.data);
+      const data = await api.get<ReportTemplatesData>('/reports/templates');
+      setTemplates(data);
     } catch (error) {
       console.error('Failed to load templates:', error);
     } finally {
@@ -77,20 +77,20 @@ export function ReportTemplates({ onExecutionComplete }: Props) {
 
     setExecuting(true);
     try {
-      const response = await api.post('/reports/templates/execute', {
+      const data = await api.post<{ execution_id?: string; file_path?: string }>('/reports/templates/execute', {
         template_name: selectedTemplate.name,
         parameters,
         export_format: exportFormat,
       });
 
-      if (onExecutionComplete && response.data.execution_id) {
-        onExecutionComplete(response.data.execution_id);
+      if (onExecutionComplete && data.execution_id) {
+        onExecutionComplete(data.execution_id);
       }
 
       // Download file if not JSON
-      if (exportFormat !== 'json' && response.data.file_path) {
+      if (exportFormat !== 'json' && data.file_path) {
         // Trigger download
-        window.open(`/api/v1/reports/executions/${response.data.execution_id}/download`, '_blank');
+        window.open(`/api/v1/reports/executions/${data.execution_id}/download`, '_blank');
       }
 
       setSelectedTemplate(null);

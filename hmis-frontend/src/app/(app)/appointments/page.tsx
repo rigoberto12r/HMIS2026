@@ -1,7 +1,8 @@
 'use client';
 
+import { Suspense } from 'react';
 import { Card } from '@/components/ui/card';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Loader2 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { AppointmentList } from '@/components/appointments/AppointmentList';
 import { AppointmentFiltersClient } from '@/components/appointments/AppointmentFiltersClient';
@@ -10,12 +11,12 @@ import { CalendarView } from '@/components/appointments/CalendarView';
 import { useAppointments } from '@/hooks/useAppointments';
 
 /**
- * Appointments Page - Client Component with React Query
+ * Appointments Page Content - Client Component with React Query
  *
  * Uses URL search params for bookmarkable filter state
  * and React Query for authenticated data fetching + caching.
  */
-export default function AppointmentsPage() {
+function AppointmentsPageContent() {
   const searchParams = useSearchParams();
 
   const page = Number(searchParams.get('page')) || 1;
@@ -77,5 +78,17 @@ export default function AppointmentsPage() {
         </Card>
       )}
     </div>
+  );
+}
+
+export default function AppointmentsPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
+      </div>
+    }>
+      <AppointmentsPageContent />
+    </Suspense>
   );
 }

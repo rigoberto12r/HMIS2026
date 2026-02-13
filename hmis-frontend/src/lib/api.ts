@@ -33,31 +33,24 @@ class ApiClientError extends Error {
 }
 
 // ─── Token Management ────────────────────────────────────
-
-function getAuthToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem('hmis_access_token');
-}
-
-function getRefreshToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem('hmis_refresh_token');
-}
+// NOTA: Tokens ahora están en httpOnly cookies (no accesibles desde JavaScript)
+// Esto previene ataques XSS. Las cookies se envían automáticamente con cada request.
 
 function getTenantId(): string | null {
-  if (typeof window === 'undefined') return 'demo';
-  return localStorage.getItem('hmis_tenant_id') || 'demo';
+  if (typeof window === 'undefined') return 'default';
+  return localStorage.getItem('hmis_tenant_id') || 'default';
 }
 
-function setTokens(accessToken: string, refreshToken: string): void {
-  localStorage.setItem('hmis_access_token', accessToken);
-  localStorage.setItem('hmis_refresh_token', refreshToken);
+function setTenantId(tenantId: string): void {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('hmis_tenant_id', tenantId);
+  }
 }
 
-function clearTokens(): void {
-  localStorage.removeItem('hmis_access_token');
-  localStorage.removeItem('hmis_refresh_token');
-  localStorage.removeItem('hmis_tenant_id');
+function clearTenantId(): void {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('hmis_tenant_id');
+  }
 }
 
 // ─── Token Refresh Logic ─────────────────────────────────
@@ -69,20 +62,21 @@ async function refreshAccessToken(): Promise<boolean> {
   if (refreshPromise) return refreshPromise;
 
   refreshPromise = (async () => {
-    const refreshToken = getRefreshToken();
-    if (!refreshToken) return false;
-
     try {
+      // El refresh_token viene automáticamente desde httpOnly cookie
       const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: refreshToken }),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Tenant-ID': getTenantId() || 'default',
+        },
+        credentials: 'include',  // ← IMPORTANTE: Envía cookies automáticamente
       });
 
       if (!response.ok) return false;
 
-      const data = await response.json();
-      setTokens(data.access_token, data.refresh_token);
+      // Los nuevos tokens ya fueron establecidos en httpOnly cookies por el backend
+      // No necesitamos hacer nada más aquí
       return true;
     } catch {
       return false;
@@ -154,18 +148,16 @@ async function handleResponse<T>(response: Response): Promise<T> {
 }
 
 function buildHeaders(customHeaders?: Record<string, string>): Record<string, string> {
-  const token = getAuthToken();
-
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     Accept: 'application/json',
     ...(customHeaders || {}),
   };
 
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
+  // El access_token ahora viene automáticamente en httpOnly cookie
+  // Ya no necesitamos agregarlo manualmente al header Authorization
 
+  // Solo agregamos el tenant ID que sí necesitamos enviar
   const tenantId = getTenantId();
   if (tenantId) {
     headers['X-Tenant-ID'] = tenantId;
@@ -181,28 +173,31 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   const url = buildUrl(endpoint, params);
   const jsonBody = body ? JSON.stringify(body) : undefined;
 
-  // First attempt
+  // First attempt - incluir credentials para enviar cookies automáticamente
   let response = await fetch(url, {
     ...restOptions,
     headers: buildHeaders(customHeaders as Record<string, string>),
     body: jsonBody,
+    credentials: 'include',  // ← CRÍTICO: Envía httpOnly cookies automáticamente
   });
 
   // On 401 → try refreshing the token and retry once
-  if (response.status === 401 && getRefreshToken()) {
+  if (response.status === 401) {
     const refreshed = await refreshAccessToken();
 
     if (refreshed) {
+      // Retry with refreshed cookies
       response = await fetch(url, {
         ...restOptions,
         headers: buildHeaders(customHeaders as Record<string, string>),
         body: jsonBody,
+        credentials: 'include',
       });
     }
 
     // Still 401 after refresh → session expired, redirect to login
     if (response.status === 401) {
-      clearTokens();
+      clearTenantId();
       if (typeof window !== 'undefined') {
         window.location.href = '/auth/login';
       }

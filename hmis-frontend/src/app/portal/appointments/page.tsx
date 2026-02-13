@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Calendar, Clock, MapPin, User, X, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -27,11 +27,7 @@ export default function PortalAppointmentsPage() {
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState('');
 
-  useEffect(() => {
-    fetchAppointments();
-  }, [showPast]);
-
-  const fetchAppointments = async () => {
+  const fetchAppointments = useCallback(async () => {
     try {
       const token = localStorage.getItem('portal_access_token');
       const response = await fetch(
@@ -50,7 +46,11 @@ export default function PortalAppointmentsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [showPast]);
+
+  useEffect(() => {
+    fetchAppointments();
+  }, [fetchAppointments]);
 
   const handleCancel = async (appointmentId: string) => {
     if (!cancelReason.trim()) {

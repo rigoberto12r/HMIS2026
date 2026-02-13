@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { DollarSign, Calendar, Download, CreditCard, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -46,15 +46,7 @@ export default function PortalBillingPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [unpaidOnly, setUnpaidOnly] = useState(false);
 
-  useEffect(() => {
-    if (activeTab === 'invoices') {
-      fetchInvoices();
-    } else {
-      fetchPayments();
-    }
-  }, [activeTab, unpaidOnly]);
-
-  const fetchInvoices = async () => {
+  const fetchInvoices = useCallback(async () => {
     setIsLoading(true);
     try {
       const token = localStorage.getItem('portal_access_token');
@@ -74,9 +66,9 @@ export default function PortalBillingPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [unpaidOnly]);
 
-  const fetchPayments = async () => {
+  const fetchPayments = useCallback(async () => {
     setIsLoading(true);
     try {
       const token = localStorage.getItem('portal_access_token');
@@ -93,7 +85,15 @@ export default function PortalBillingPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'invoices') {
+      fetchInvoices();
+    } else {
+      fetchPayments();
+    }
+  }, [activeTab, fetchInvoices, fetchPayments]);
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {

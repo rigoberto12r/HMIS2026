@@ -4,113 +4,198 @@
 
 @layer base {
   :root {
-    /* ── Primary: Indigo-Violet (authority, innovation) ── */
+    /* ══════════════════════════════════════════════════════════════
+       🎨 LIGHT MODE - SaaS Premium Theme System
+       ══════════════════════════════════════════════════════════════ */
+
+    /* ── Primary: Indigo-Violet (authority, innovation, clinical trust) ── */
     --color-primary-50: 238 242 255;
     --color-primary-100: 224 231 255;
     --color-primary-200: 199 210 254;
     --color-primary-300: 165 180 252;
     --color-primary-400: 129 140 248;
-    --color-primary-500: 99 102 241;
+    --color-primary-500: 99 102 241;   /* Main brand color */
     --color-primary-600: 79 70 229;
     --color-primary-700: 67 56 202;
     --color-primary-800: 55 48 163;
     --color-primary-900: 49 46 129;
 
-    /* ── Accent: Emerald (health, success, positivity) ── */
+    /* ── Accent: Emerald (health, vitality, success) ── */
     --color-accent-50: 236 253 245;
     --color-accent-100: 209 250 229;
     --color-accent-200: 167 243 208;
     --color-accent-300: 110 231 183;
     --color-accent-400: 52 211 153;
-    --color-accent-500: 16 185 129;
+    --color-accent-500: 16 185 129;    /* Health green */
     --color-accent-600: 5 150 105;
     --color-accent-700: 4 120 87;
     --color-accent-800: 6 95 70;
     --color-accent-900: 6 78 59;
 
-    /* ── Neutrals: Warm stone (reduces clinical coldness) ── */
-    --color-surface-50: 250 250 249;
+    /* ── Surface: Warm stone (reduces clinical coldness) ── */
+    --color-surface-50: 250 250 249;   /* Lightest background */
     --color-surface-100: 245 245 244;
     --color-surface-200: 231 229 228;
     --color-surface-300: 214 211 209;
     --color-surface-400: 168 162 158;
-    --color-surface-500: 120 113 108;
+    --color-surface-500: 120 113 108;  /* Mid-tone */
     --color-surface-600: 87 83 78;
     --color-surface-700: 68 64 60;
     --color-surface-800: 41 37 36;
-    --color-surface-900: 28 25 23;
+    --color-surface-900: 28 25 23;     /* Darkest surface */
 
-    /* ── Semantic colors ── */
-    --color-danger: 239 68 68;
-    --color-warning: 245 158 11;
-    --color-success: 16 185 129;
-    --color-info: 59 130 246;
+    /* ── Semantic: State colors (alerts, validation, info) ── */
+    --color-danger: 239 68 68;         /* Red for critical */
+    --color-warning: 245 158 11;       /* Amber for caution */
+    --color-success: 16 185 129;       /* Green for positive */
+    --color-info: 59 130 246;          /* Blue for informational */
 
-    /* ── Legacy medical color aliases ── */
+    /* ── Text: Semantic text colors ── */
+    --text-primary: 41 37 36;          /* Main text (surface-800) */
+    --text-secondary: 87 83 78;        /* Secondary text (surface-600) */
+    --text-tertiary: 120 113 108;      /* Muted text (surface-500) */
+    --text-disabled: 168 162 158;      /* Disabled text (surface-400) */
+    --text-inverse: 250 250 249;       /* White text for dark backgrounds */
+
+    /* ── Medical: Clinical color aliases (backward compat) ── */
     --color-medical-red: 239 68 68;
     --color-medical-green: 16 185 129;
     --color-medical-orange: 245 158 11;
+    --color-medical-blue: 59 130 246;
 
-    /* ── Gradients ── */
+    /* ── Gradients: Premium visual effects ── */
     --gradient-primary: linear-gradient(135deg, #6366F1 0%, #8B5CF6 50%, #A78BFA 100%);
     --gradient-accent: linear-gradient(135deg, #10B981 0%, #34D399 100%);
     --gradient-sidebar: linear-gradient(180deg, #1E1B4B 0%, #312E81 40%, #3730A3 100%);
     --gradient-card-glow: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%);
     --gradient-danger: linear-gradient(135deg, #EF4444 0%, #F87171 100%);
+    --gradient-success: linear-gradient(135deg, #10B981 0%, #34D399 100%);
+    --gradient-warning: linear-gradient(135deg, #F59E0B 0%, #FBBF24 100%);
 
-    /* ── Shadows with color ── */
+    /* ── Shadows: Colored & contextual ── */
     --shadow-glow-primary: 0 4px 14px -3px rgba(99, 102, 241, 0.25);
     --shadow-glow-accent: 0 4px 14px -3px rgba(16, 185, 129, 0.25);
     --shadow-glow-danger: 0 4px 14px -3px rgba(239, 68, 68, 0.25);
+    --shadow-glow-success: 0 4px 14px -3px rgba(16, 185, 129, 0.3);
+    --shadow-card-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.06);
+    --shadow-card-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08);
+    --shadow-card-lg: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
 
-    /* ── Background ── */
-    --bg-body: 250 250 249;
-    --bg-card: 255 255 255;
+    /* ── Backgrounds: Global surfaces ── */
+    --bg-body: 250 250 249;            /* Main app background */
+    --bg-card: 255 255 255;            /* Card/panel background */
+    --bg-elevated: 255 255 255;        /* Elevated surfaces (modals, dropdowns) */
+    --bg-hover: 245 245 244;           /* Hover state background */
+    --bg-active: 231 229 228;          /* Active/pressed state */
+
+    /* ── Glass Effects: Glassmorphism layers ── */
+    --glass-weak: rgba(255, 255, 255, 0.5);
+    --glass-medium: rgba(255, 255, 255, 0.7);
+    --glass-strong: rgba(255, 255, 255, 0.9);
+    --glass-border: rgba(255, 255, 255, 0.2);
+    --glass-backdrop-blur: 12px;
+
+    /* ── Health OS: Custom dark theme (matches new dashboard) ── */
+    --hos-bg-primary: 15 14 25;        /* Deep navy background */
+    --hos-bg-card: 24 22 38;           /* Card background */
+    --hos-bg-card-hover: 32 29 50;     /* Card hover state */
+    --hos-bg-elevated: 38 35 58;       /* Elevated surfaces */
+
+    /* ── Theme transition: Prevent FOUC (Flash of Unstyled Content) ── */
+    --theme-transition-duration: 200ms;
+    --theme-transition-easing: cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  /* ── Dark Mode ── */
+  /* ══════════════════════════════════════════════════════════════
+     🌙 DARK MODE - Premium Night Theme
+     ══════════════════════════════════════════════════════════════ */
   .dark {
+    /* ── Primary: Inverted scale (lighter in dark mode) ── */
     --color-primary-50: 49 46 129;
     --color-primary-100: 55 48 163;
     --color-primary-200: 67 56 202;
     --color-primary-300: 99 102 241;
     --color-primary-400: 129 140 248;
-    --color-primary-500: 165 180 252;
+    --color-primary-500: 165 180 252;  /* Main brand color (lighter) */
     --color-primary-600: 199 210 254;
     --color-primary-700: 224 231 255;
     --color-primary-800: 238 242 255;
     --color-primary-900: 245 247 255;
 
+    /* ── Accent: Inverted emerald scale ── */
     --color-accent-50: 6 78 59;
     --color-accent-100: 6 95 70;
     --color-accent-200: 4 120 87;
     --color-accent-300: 16 185 129;
     --color-accent-400: 52 211 153;
-    --color-accent-500: 110 231 183;
+    --color-accent-500: 110 231 183;   /* Health green (lighter) */
     --color-accent-600: 167 243 208;
     --color-accent-700: 209 250 229;
     --color-accent-800: 236 253 245;
     --color-accent-900: 245 254 250;
 
-    --color-surface-50: 28 25 23;
-    --color-surface-100: 41 37 36;
-    --color-surface-200: 68 64 60;
-    --color-surface-300: 87 83 78;
+    /* ── Surface: Inverted scale (dark base) ── */
+    --color-surface-50: 10 14 26;      /* Near-black (based on #0a0e1a design) */
+    --color-surface-100: 24 28 42;     /* Very dark blue-gray */
+    --color-surface-200: 38 42 60;     /* Dark blue-gray */
+    --color-surface-300: 55 60 82;     /* Mid-dark */
     --color-surface-400: 120 113 108;
-    --color-surface-500: 168 162 158;
+    --color-surface-500: 168 162 158;  /* Mid-tone */
     --color-surface-600: 214 211 209;
     --color-surface-700: 231 229 228;
     --color-surface-800: 245 245 244;
-    --color-surface-900: 250 250 249;
+    --color-surface-900: 250 250 249;  /* Light text on dark bg */
 
+    /* ── Semantic: Adjusted for dark backgrounds ── */
+    --color-danger: 248 113 113;       /* Lighter red (more visible) */
+    --color-warning: 251 191 36;       /* Lighter amber */
+    --color-success: 52 211 153;       /* Lighter green */
+    --color-info: 96 165 250;          /* Lighter blue */
+
+    /* ── Text: Inverted hierarchy ── */
+    --text-primary: 245 245 244;       /* White-ish for main text */
+    --text-secondary: 214 211 209;     /* Light gray for secondary */
+    --text-tertiary: 168 162 158;      /* Mid-gray for muted */
+    --text-disabled: 120 113 108;      /* Dark gray for disabled */
+    --text-inverse: 28 25 23;          /* Dark text for light backgrounds */
+
+    /* ── Gradients: Dark mode variants ── */
+    --gradient-primary: linear-gradient(135deg, #818CF8 0%, #A78BFA 50%, #C4B5FD 100%);
+    --gradient-accent: linear-gradient(135deg, #34D399 0%, #6EE7B7 100%);
     --gradient-sidebar: linear-gradient(180deg, #0C0A1A 0%, #1E1B4B 40%, #252262 100%);
     --gradient-card-glow: linear-gradient(135deg, rgba(129, 140, 248, 0.08) 0%, rgba(167, 139, 250, 0.08) 100%);
+    --gradient-danger: linear-gradient(135deg, #F87171 0%, #FCA5A5 100%);
+    --gradient-success: linear-gradient(135deg, #34D399 0%, #6EE7B7 100%);
+    --gradient-warning: linear-gradient(135deg, #FBBF24 0%, #FCD34D 100%);
 
-    --shadow-glow-primary: 0 4px 14px -3px rgba(129, 140, 248, 0.3);
-    --shadow-glow-accent: 0 4px 14px -3px rgba(52, 211, 153, 0.3);
+    /* ── Shadows: Darker, more subtle ── */
+    --shadow-glow-primary: 0 4px 14px -3px rgba(129, 140, 248, 0.4);
+    --shadow-glow-accent: 0 4px 14px -3px rgba(52, 211, 153, 0.4);
+    --shadow-glow-danger: 0 4px 14px -3px rgba(248, 113, 113, 0.4);
+    --shadow-glow-success: 0 4px 14px -3px rgba(52, 211, 153, 0.4);
+    --shadow-card-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.3);
+    --shadow-card-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+    --shadow-card-lg: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
 
-    --bg-body: 28 25 23;
-    --bg-card: 41 37 36;
+    /* ── Backgrounds: Dark surfaces ── */
+    --bg-body: 10 14 26;               /* Deep navy (matches design) */
+    --bg-card: 24 28 42;               /* Card background */
+    --bg-elevated: 38 42 60;           /* Elevated surfaces */
+    --bg-hover: 32 36 52;              /* Hover state */
+    --bg-active: 44 48 68;             /* Active/pressed state */
+
+    /* ── Glass Effects: Dark glassmorphism ── */
+    --glass-weak: rgba(24, 28, 42, 0.4);
+    --glass-medium: rgba(24, 28, 42, 0.7);
+    --glass-strong: rgba(24, 28, 42, 0.9);
+    --glass-border: rgba(255, 255, 255, 0.06);
+    --glass-backdrop-blur: 16px;
+
+    /* ── Health OS: Matches new dashboard exactly ── */
+    --hos-bg-primary: 10 14 26;        /* #0a0e1a - exact match */
+    --hos-bg-card: 24 28 42;           /* Slightly lighter */
+    --hos-bg-card-hover: 32 36 52;     /* Hover state */
+    --hos-bg-elevated: 38 42 60;       /* Modals, dropdowns */
   }
 
   * {
@@ -123,11 +208,24 @@
     scroll-behavior: smooth;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Smooth theme transitions */
+    transition: background-color var(--theme-transition-duration) var(--theme-transition-easing),
+                color var(--theme-transition-duration) var(--theme-transition-easing);
   }
 
   body {
     @apply bg-surface-50 text-surface-800 font-sans;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    /* Smooth theme transitions for body */
+    transition: background-color var(--theme-transition-duration) var(--theme-transition-easing),
+                color var(--theme-transition-duration) var(--theme-transition-easing);
+  }
+
+  /* Prevent FOUC (Flash of Unstyled Content) during theme switch */
+  html.transitioning * {
+    transition: background-color var(--theme-transition-duration) var(--theme-transition-easing),
+                border-color var(--theme-transition-duration) var(--theme-transition-easing),
+                color var(--theme-transition-duration) var(--theme-transition-easing) !important;
   }
 
   /* Focus styles for accessibility */
@@ -228,6 +326,71 @@
   .section-title {
     @apply text-lg font-semibold text-surface-800 dark:text-surface-200;
   }
+
+  /* ── Health OS Cards ── */
+  .hos-card {
+    @apply rounded-2xl border border-white/[0.06] backdrop-blur-sm p-5 relative overflow-hidden;
+    background: rgb(var(--hos-bg-card));
+  }
+
+  .hos-card:hover {
+    background: rgb(var(--hos-bg-card-hover));
+  }
+
+  .hos-kpi-card {
+    @apply rounded-2xl border border-white/[0.06] backdrop-blur-sm p-5 relative overflow-hidden;
+    background: rgb(var(--hos-bg-card));
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .hos-kpi-card::before {
+    content: '';
+    @apply absolute top-0 left-0 right-0 h-[2px];
+    background: var(--gradient-primary);
+    opacity: 0.6;
+  }
+
+  .hos-kpi-card:hover {
+    background: rgb(var(--hos-bg-card-hover));
+  }
+
+  .hos-tooltip {
+    @apply rounded-xl border border-white/10 backdrop-blur-xl px-3 py-2;
+    background: rgb(var(--hos-bg-elevated) / 0.95);
+  }
+
+  .hos-action-card {
+    @apply rounded-2xl border border-white/[0.06] backdrop-blur-sm p-5 cursor-pointer relative overflow-hidden;
+    background: rgb(var(--hos-bg-card));
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .hos-action-card:hover {
+    background: rgb(var(--hos-bg-card-hover));
+    transform: translateY(-2px);
+  }
+
+  .hos-status-dot {
+    @apply w-2 h-2 rounded-full flex-shrink-0;
+  }
+
+  .hos-status-dot--waiting {
+    @apply bg-amber-400;
+  }
+
+  .hos-status-dot--active {
+    @apply bg-emerald-400;
+    animation: pulseDot 2s ease-in-out infinite;
+  }
+
+  .hos-status-dot--completed {
+    @apply bg-white/20;
+  }
+}
+
+@keyframes pulseDot {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.4); }
+  50% { box-shadow: 0 0 0 4px rgba(52, 211, 153, 0); }
 }
 
 @layer utilities {
@@ -239,15 +402,33 @@
     text-wrap: balance;
   }
 
-  /* ── Glassmorphism ── */
+  /* ── Glassmorphism: Premium glass effects ── */
+  .glass-weak {
+    background: var(--glass-weak);
+    backdrop-filter: blur(var(--glass-backdrop-blur));
+    -webkit-backdrop-filter: blur(var(--glass-backdrop-blur));
+    @apply border border-white/10 dark:border-white/5;
+  }
+
   .glass {
-    @apply bg-white/70 dark:bg-surface-100/70 backdrop-blur-xl
-           border border-white/20 dark:border-surface-600/30;
+    background: var(--glass-medium);
+    backdrop-filter: blur(var(--glass-backdrop-blur));
+    -webkit-backdrop-filter: blur(var(--glass-backdrop-blur));
+    @apply border border-white/20 dark:border-white/10;
+  }
+
+  .glass-medium {
+    background: var(--glass-medium);
+    backdrop-filter: blur(calc(var(--glass-backdrop-blur) * 1.5));
+    -webkit-backdrop-filter: blur(calc(var(--glass-backdrop-blur) * 1.5));
+    @apply border border-white/20 dark:border-white/10;
   }
 
   .glass-strong {
-    @apply bg-white/90 dark:bg-surface-100/90 backdrop-blur-2xl
-           border border-surface-200/60 dark:border-surface-600/30;
+    background: var(--glass-strong);
+    backdrop-filter: blur(calc(var(--glass-backdrop-blur) * 2));
+    -webkit-backdrop-filter: blur(calc(var(--glass-backdrop-blur) * 2));
+    @apply border border-surface-200/60 dark:border-white/15;
   }
 
   /* ── Gradient text ── */

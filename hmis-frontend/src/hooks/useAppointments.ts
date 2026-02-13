@@ -96,8 +96,8 @@ export function useUpdateAppointmentStatus() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: Appointment['status'] }) => {
-      const response = await api.patch<Appointment>(`/appointments/${id}/status`, { status });
+    mutationFn: async ({ id, status, cancellation_reason }: { id: string; status: Appointment['status']; cancellation_reason?: string }) => {
+      const response = await api.patch<Appointment>(`/appointments/${id}/status`, { status, cancellation_reason });
       return response;
     },
     onMutate: async ({ id, status }) => {

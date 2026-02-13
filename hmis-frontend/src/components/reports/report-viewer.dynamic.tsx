@@ -26,7 +26,7 @@ function ReportViewerSkeleton() {
 }
 
 export const ReportViewerDynamic = dynamic(
-  () => import('../reports/report-viewer').then((mod) => mod.default),
+  () => import('./ReportViewer').then((mod) => mod.ReportViewer),
   {
     loading: () => <ReportViewerSkeleton />,
     ssr: false,
