@@ -149,9 +149,40 @@ export function PrescriptionForm({ patientId, onSubmit }: PrescriptionFormProps)
       } else {
         onSubmit?.(items);
       }
-    } catch {
-      // CDS check failed, proceed without blocking
-      onSubmit?.(items);
+    } catch (error) {
+      // CRITICAL: CDS check failed - must warn user
+      console.error('[CDS] Drug interaction check failed:', error);
+
+      // Log error for monitoring
+      if (typeof window !== 'undefined' && (window as any).Sentry) {
+        (window as any).Sentry.captureException(error, {
+          extra: {
+            context: 'CDS_drug_interaction_check',
+            medications: items.map(i => i.medication),
+            patientId,
+          }
+        });
+      }
+
+      // Show warning dialog to user
+      const confirmed = confirm(
+        '⚠️ WARNING: Drug Interaction Check Failed\n\n' +
+        'The system could not verify drug interactions due to a technical error.\n\n' +
+        'Possible causes:\n' +
+        '• Network connectivity issues\n' +
+        '• CDS service temporarily unavailable\n' +
+        '• Authentication timeout\n\n' +
+        'RECOMMENDATION: Manually verify drug interactions before prescribing.\n\n' +
+        'Do you want to proceed WITHOUT interaction verification?\n' +
+        '(This action will be logged for audit purposes)'
+      );
+
+      if (confirmed) {
+        console.warn('[CDS] User proceeded without drug interaction check');
+        onSubmit?.(items);
+      } else {
+        console.info('[CDS] User cancelled prescription due to CDS check failure');
+      }
     } finally {
       setIsChecking(false);
     }
@@ -326,12 +357,22 @@ export function PrescriptionForm({ patientId, onSubmit }: PrescriptionFormProps)
                   required
                 />
 
-                <Textarea
-                  label="Instrucciones para el Paciente"
-                  value={item.instructions}
-                  onChange={(e) => updateItem(item.id, 'instructions', e.target.value)}
-                  placeholder="Tomar con alimentos, evitar alcohol, almacenar en lugar fresco..."
-                />
+                <div className="relative">
+                  <Textarea
+                    label="Instrucciones para el Paciente"
+                    value={item.instructions}
+                    onChange={(e) => {
+                      if (e.target.value.length <= 500) {
+                        updateItem(item.id, 'instructions', e.target.value);
+                      }
+                    }}
+                    placeholder="Tomar con alimentos, evitar alcohol, almacenar en lugar fresco..."
+                    maxLength={500}
+                  />
+                  <p className="text-xs text-neutral-400 mt-1">
+                    {item.instructions.length}/500 caracteres
+                  </p>
+                </div>
 
                 <label className="flex items-center gap-2.5 text-sm cursor-pointer">
                   <input

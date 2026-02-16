@@ -29,13 +29,16 @@ export default function PortalPrescriptionsPage() {
   const [refillNotes, setRefillNotes] = useState('');
 
   const fetchPrescriptions = useCallback(async () => {
+    const controller = new AbortController();
     setIsLoading(true);
+
     try {
       const token = localStorage.getItem('portal_access_token');
       const response = await fetch(
         `${PORTAL_API_URL}/portal/prescriptions?active_only=${activeOnly}`,
         {
           headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
         }
       );
 
@@ -44,14 +47,22 @@ export default function PortalPrescriptionsPage() {
       const data = await response.json();
       setPrescriptions(data);
     } catch (err) {
-      console.error(err);
+      if (err instanceof Error && err.name !== 'AbortError') {
+        console.error(err);
+      }
     } finally {
       setIsLoading(false);
     }
+
+    return controller;
   }, [activeOnly]);
 
   useEffect(() => {
-    fetchPrescriptions();
+    const controller = fetchPrescriptions();
+
+    return () => {
+      controller.then((ctrl) => ctrl.abort());
+    };
   }, [fetchPrescriptions]);
 
   const handleRequestRefill = async () => {

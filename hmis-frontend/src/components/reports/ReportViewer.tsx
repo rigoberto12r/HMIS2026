@@ -42,23 +42,40 @@ export function ReportViewer({ executionId, onClose }: Props) {
 
   const loadExecutionResult = useCallback(async () => {
     setLoading(true);
+    let cancelled = false;
+
     try {
       const data = await api.get<ReportResult>(`/reports/executions/${executionId}`);
-      setResult(data);
 
-      // Initialize visible columns
-      if (data.columns) {
-        setVisibleColumns(new Set(data.columns));
+      if (!cancelled) {
+        setResult(data);
+
+        // Initialize visible columns
+        if (data.columns) {
+          setVisibleColumns(new Set(data.columns));
+        }
       }
     } catch (error) {
-      console.error('Failed to load execution result:', error);
+      if (!cancelled) {
+        console.error('Failed to load execution result:', error);
+      }
     } finally {
-      setLoading(false);
+      if (!cancelled) {
+        setLoading(false);
+      }
     }
+
+    return () => {
+      cancelled = true;
+    };
   }, [executionId]);
 
   useEffect(() => {
-    loadExecutionResult();
+    const cleanup = loadExecutionResult();
+
+    return () => {
+      cleanup();
+    };
   }, [loadExecutionResult]);
 
   const handleDownload = async (format: 'csv' | 'excel' | 'pdf') => {

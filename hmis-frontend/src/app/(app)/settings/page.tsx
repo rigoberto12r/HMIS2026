@@ -97,19 +97,31 @@ export default function SettingsPage() {
 
   // Cargar datos dinamicos
   useEffect(() => {
+    let cancelled = false;
+
     (async () => {
       try {
         const services = await api.get<{ total: number }>('/billing/services', { page: 1, page_size: 1 });
-        setServiceCount(services.total);
+        if (!cancelled) {
+          setServiceCount(services.total);
+        }
       } catch { /* ignore */ }
 
       try {
         const health = await api.get<SystemHealth>('/../../health');
-        setSystemHealth(health);
+        if (!cancelled) {
+          setSystemHealth(health);
+        }
       } catch {
-        setSystemHealth({ status: 'ok', version: '1.0.0' });
+        if (!cancelled) {
+          setSystemHealth({ status: 'ok', version: '1.0.0' });
+        }
       }
     })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Secciones de configuracion

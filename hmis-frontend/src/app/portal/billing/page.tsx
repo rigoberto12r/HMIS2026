@@ -47,13 +47,16 @@ export default function PortalBillingPage() {
   const [unpaidOnly, setUnpaidOnly] = useState(false);
 
   const fetchInvoices = useCallback(async () => {
+    const controller = new AbortController();
     setIsLoading(true);
+
     try {
       const token = localStorage.getItem('portal_access_token');
       const response = await fetch(
         `${PORTAL_API_URL}/portal/billing/invoices?unpaid_only=${unpaidOnly}`,
         {
           headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
         }
       );
 
@@ -62,18 +65,25 @@ export default function PortalBillingPage() {
       const data = await response.json();
       setInvoices(data);
     } catch (err) {
-      console.error(err);
+      if (err instanceof Error && err.name !== 'AbortError') {
+        console.error(err);
+      }
     } finally {
       setIsLoading(false);
     }
+
+    return controller;
   }, [unpaidOnly]);
 
   const fetchPayments = useCallback(async () => {
+    const controller = new AbortController();
     setIsLoading(true);
+
     try {
       const token = localStorage.getItem('portal_access_token');
       const response = await fetch(`${PORTAL_API_URL}/portal/billing/payments`, {
         headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
       });
 
       if (!response.ok) throw new Error('Failed to load payments');
@@ -81,18 +91,28 @@ export default function PortalBillingPage() {
       const data = await response.json();
       setPayments(data);
     } catch (err) {
-      console.error(err);
+      if (err instanceof Error && err.name !== 'AbortError') {
+        console.error(err);
+      }
     } finally {
       setIsLoading(false);
     }
+
+    return controller;
   }, []);
 
   useEffect(() => {
+    let controller: AbortController | undefined;
+
     if (activeTab === 'invoices') {
-      fetchInvoices();
+      fetchInvoices().then((ctrl) => { controller = ctrl; });
     } else {
-      fetchPayments();
+      fetchPayments().then((ctrl) => { controller = ctrl; });
     }
+
+    return () => {
+      controller?.abort();
+    };
   }, [activeTab, fetchInvoices, fetchPayments]);
 
   const getStatusColor = (status: string) => {

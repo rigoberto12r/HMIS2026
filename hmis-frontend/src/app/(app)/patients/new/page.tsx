@@ -9,6 +9,9 @@ import { Input, Select, Textarea } from '@/components/ui/input';
 import { useCreatePatient, type PatientCreateData } from '@/hooks/usePatients';
 import { ArrowLeft, Save, User, FileText, Phone, Mail, MapPin, Shield, Heart } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { validatePhone } from '@/lib/utils/phone-validation';
+import { dateUtils } from '@/lib/utils/validation';
+import { captureException } from '@/lib/monitoring';
 
 /**
  * New Patient Form Page
@@ -94,6 +97,21 @@ export default function NewPatientPage() {
 
   const onSubmit = async (data: PatientFormData) => {
     try {
+      // Validate phone numbers before submitting
+      if (data.phone_number && data.phone_number.trim() !== '') {
+        const phoneValidation = validatePhone(data.phone_number);
+        if (!phoneValidation.valid) {
+          throw new Error(phoneValidation.error || 'Número de teléfono inválido');
+        }
+      }
+
+      if (data.emergency_contact_phone && data.emergency_contact_phone.trim() !== '') {
+        const phoneValidation = validatePhone(data.emergency_contact_phone);
+        if (!phoneValidation.valid) {
+          throw new Error('Teléfono de contacto de emergencia inválido: ' + (phoneValidation.error || ''));
+        }
+      }
+
       const patientData: PatientCreateData = {
         first_name: data.first_name,
         last_name: data.last_name,
@@ -125,6 +143,14 @@ export default function NewPatientPage() {
       // Redirect to patients list on success
       router.push('/patients');
     } catch (error) {
+      captureException(error, {
+        context: 'create_patient_page',
+        formData: {
+          first_name: data.first_name,
+          last_name: data.last_name,
+          document_type: data.document_type,
+        },
+      });
       console.error('Error creating patient:', error);
     }
   };
@@ -225,7 +251,9 @@ export default function NewPatientPage() {
                     label="Fecha de Nacimiento"
                     error={errors.date_of_birth?.message}
                     required
-                    max={new Date().toISOString().split('T')[0]}
+                    max={dateUtils.getMaxBirthDate()}
+                    min={dateUtils.getMinBirthDate()}
+                    title="Fecha de nacimiento (edad máxima 120 años)"
                   />
 
                   <Select
@@ -283,12 +311,13 @@ export default function NewPatientPage() {
                     placeholder="+1 809-555-1234"
                     leftIcon={<Phone className="w-4 h-4" />}
                     error={errors.phone_number?.message}
+                    title="Formato: 809-555-1234 o +1-809-555-1234"
                   />
 
                   <Input
                     {...register('email', {
                       pattern: {
-                        value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                        value: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
                         message: 'Email inválido'
                       }
                     })}
@@ -297,6 +326,8 @@ export default function NewPatientPage() {
                     placeholder="juan.perez@email.com"
                     leftIcon={<Mail className="w-4 h-4" />}
                     error={errors.email?.message}
+                    pattern="^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+                    title="Ingrese un correo válido (ej: usuario@ejemplo.com)"
                   />
                 </div>
 
@@ -335,6 +366,7 @@ export default function NewPatientPage() {
                       label="Teléfono"
                       placeholder="+1 809-555-5678"
                       error={errors.emergency_contact_phone?.message}
+                      title="Formato: 809-555-1234 o +1-809-555-1234"
                     />
                   </div>
                 </div>
@@ -358,13 +390,24 @@ export default function NewPatientPage() {
                   placeholder="Seleccionar tipo de sangre"
                 />
 
-                <Textarea
-                  {...register('allergies')}
-                  label="Alergias"
-                  placeholder="Describa cualquier alergia conocida (medicamentos, alimentos, etc.)"
-                  rows={4}
-                  hint="Opcional - Liste todas las alergias conocidas"
-                />
+                <div className="relative">
+                  <Textarea
+                    {...register('allergies', {
+                      maxLength: {
+                        value: 500,
+                        message: 'Máximo 500 caracteres'
+                      }
+                    })}
+                    label="Alergias"
+                    placeholder="Describa cualquier alergia conocida (medicamentos, alimentos, etc.)"
+                    rows={4}
+                    hint="Opcional - Liste todas las alergias conocidas"
+                    maxLength={500}
+                  />
+                  <p className="text-xs text-surface-400 mt-1">
+                    {(watch('allergies') || '').length}/500 caracteres
+                  </p>
+                </div>
 
                 <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
                   <p className="text-sm text-amber-800 dark:text-amber-200">

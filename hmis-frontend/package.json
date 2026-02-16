@@ -25,6 +25,8 @@
     "cornerstone-core": "^2.6.1",
     "date-fns": "^4.1.0",
     "framer-motion": "^12.34.0",
+    "isomorphic-dompurify": "^3.0.0-rc.2",
+    "libphonenumber-js": "^1.12.36",
     "lucide-react": "^0.309.0",
     "next": "^16.1.6",
     "react": "^19.2.4",
@@ -36,8 +38,10 @@
     "zustand": "^4.4.7"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.3",
     "@next/bundle-analyzer": "^16.1.6",
     "@tanstack/react-query-devtools": "^5.91.3",
+    "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",

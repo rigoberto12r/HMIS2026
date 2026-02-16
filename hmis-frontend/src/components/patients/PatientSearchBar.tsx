@@ -49,18 +49,25 @@ export function PatientSearchBar() {
 
   // Debounced search
   useEffect(() => {
+    let cancelled = false;
+
     const timer = setTimeout(() => {
-      const params = new URLSearchParams(searchParams.toString());
-      if (searchValue) {
-        params.set('search', searchValue);
-      } else {
-        params.delete('search');
+      if (!cancelled) {
+        const params = new URLSearchParams(searchParams.toString());
+        if (searchValue) {
+          params.set('search', searchValue);
+        } else {
+          params.delete('search');
+        }
+        params.set('page', '1');
+        router.push(`/patients?${params.toString()}`);
       }
-      params.set('page', '1');
-      router.push(`/patients?${params.toString()}`);
     }, 300);
 
-    return () => clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [searchValue, router, searchParams]);
 
   const handleClearSearch = () => {

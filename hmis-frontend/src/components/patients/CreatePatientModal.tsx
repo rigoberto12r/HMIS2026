@@ -7,6 +7,9 @@ import { Button } from '@/components/ui/button';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCreatePatient, type PatientCreateData } from '@/hooks/usePatients';
+import { validatePhone } from '@/lib/utils/phone-validation';
+import { dateUtils } from '@/lib/utils/validation';
+import { captureException } from '@/lib/monitoring';
 
 interface CreatePatientModalProps {
   isOpen: boolean;
@@ -78,6 +81,24 @@ export function CreatePatientModal({ isOpen, onClose }: CreatePatientModalProps)
       return;
     }
 
+    // Phone validation
+    if (formData.phone_number && formData.phone_number.trim() !== '') {
+      const phoneValidation = validatePhone(formData.phone_number);
+      if (!phoneValidation.valid) {
+        setFormError(phoneValidation.error || 'Número de teléfono inválido');
+        return;
+      }
+    }
+
+    // Emergency contact phone validation
+    if (formData.emergency_contact_phone && formData.emergency_contact_phone.trim() !== '') {
+      const phoneValidation = validatePhone(formData.emergency_contact_phone);
+      if (!phoneValidation.valid) {
+        setFormError('Teléfono de contacto de emergencia inválido: ' + (phoneValidation.error || ''));
+        return;
+      }
+    }
+
     try {
       await createPatient.mutateAsync(formData);
       toast.success('Paciente registrado exitosamente');
@@ -85,6 +106,15 @@ export function CreatePatientModal({ isOpen, onClose }: CreatePatientModalProps)
       setFormError(null);
       onClose();
     } catch (err: any) {
+      captureException(err, {
+        context: 'create_patient_modal',
+        formData: {
+          first_name: formData.first_name,
+          last_name: formData.last_name,
+          document_type: formData.document_type,
+        },
+      });
+
       let message = 'Error al crear paciente';
       if (err?.response?.data?.detail) {
         if (typeof err.response.data.detail === 'string') {
@@ -150,6 +180,12 @@ export function CreatePatientModal({ isOpen, onClose }: CreatePatientModalProps)
               label="Nombre *"
               value={formData.first_name}
               onChange={(e) => handleChange('first_name', e.target.value)}
+              onBlur={(e) => {
+                const trimmed = e.target.value.trim();
+                if (trimmed !== e.target.value) {
+                  handleChange('first_name', trimmed);
+                }
+              }}
               placeholder="Ej: Juan"
               required
             />
@@ -157,6 +193,12 @@ export function CreatePatientModal({ isOpen, onClose }: CreatePatientModalProps)
               label="Apellido *"
               value={formData.last_name}
               onChange={(e) => handleChange('last_name', e.target.value)}
+              onBlur={(e) => {
+                const trimmed = e.target.value.trim();
+                if (trimmed !== e.target.value) {
+                  handleChange('last_name', trimmed);
+                }
+              }}
               placeholder="Ej: Pérez"
               required
             />
@@ -165,6 +207,9 @@ export function CreatePatientModal({ isOpen, onClose }: CreatePatientModalProps)
               type="date"
               value={formData.date_of_birth}
               onChange={(e) => handleChange('date_of_birth', e.target.value)}
+              max={dateUtils.getMaxBirthDate()}
+              min={dateUtils.getMinBirthDate()}
+              title="Fecha de nacimiento (edad máxima 120 años)"
               required
             />
             <Select
@@ -208,13 +253,22 @@ export function CreatePatientModal({ isOpen, onClose }: CreatePatientModalProps)
               value={formData.phone_number || ''}
               onChange={(e) => handleChange('phone_number', e.target.value)}
               placeholder="Ej: 809-555-1234"
+              title="Formato: 809-555-1234 o +1-809-555-1234"
             />
             <Input
               label="Correo Electrónico"
               type="email"
               value={formData.email || ''}
               onChange={(e) => handleChange('email', e.target.value)}
+              onBlur={(e) => {
+                const trimmed = e.target.value.trim();
+                if (trimmed !== e.target.value) {
+                  handleChange('email', trimmed);
+                }
+              }}
               placeholder="Ej: paciente@ejemplo.com"
+              pattern="^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+              title="Ingrese un correo válido (ej: usuario@ejemplo.com)"
             />
           </div>
         </div>
@@ -229,12 +283,22 @@ export function CreatePatientModal({ isOpen, onClose }: CreatePatientModalProps)
               onChange={(e) => handleChange('blood_type', e.target.value)}
               options={bloodTypeOptions}
             />
-            <Input
-              label="Alergias"
-              value={formData.allergies || ''}
-              onChange={(e) => handleChange('allergies', e.target.value)}
-              placeholder="Ej: Penicilina, Mariscos"
-            />
+            <div className="relative">
+              <Input
+                label="Alergias"
+                value={formData.allergies || ''}
+                onChange={(e) => {
+                  if (e.target.value.length <= 500) {
+                    handleChange('allergies', e.target.value);
+                  }
+                }}
+                placeholder="Ej: Penicilina, Mariscos"
+                maxLength={500}
+              />
+              <p className="text-xs text-neutral-400 mt-1">
+                {(formData.allergies || '').length}/500 caracteres
+              </p>
+            </div>
           </div>
         </div>
 
@@ -254,6 +318,7 @@ export function CreatePatientModal({ isOpen, onClose }: CreatePatientModalProps)
               value={formData.emergency_contact_phone || ''}
               onChange={(e) => handleChange('emergency_contact_phone', e.target.value)}
               placeholder="Ej: 809-555-9999"
+              title="Formato: 809-555-1234 o +1-809-555-1234"
             />
           </div>
         </div>

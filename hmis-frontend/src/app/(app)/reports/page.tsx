@@ -58,8 +58,38 @@ export default function ReportsPage() {
   const [selectedExecution, setSelectedExecution] = useState<string | null>(null);
 
   useEffect(() => {
-    loadReportDefinitions();
-    loadRecentExecutions();
+    let cancelled = false;
+
+    const loadData = async () => {
+      try {
+        const data = await api.get<ReportDefinition[]>('/reports/definitions');
+        if (!cancelled) {
+          setReportDefinitions(data);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to load report definitions:', error);
+        }
+      }
+
+      try {
+        // This would need a backend endpoint to list executions
+        // For now, we'll leave it empty
+        if (!cancelled) {
+          setRecentExecutions([]);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to load executions:', error);
+        }
+      }
+    };
+
+    loadData();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const loadReportDefinitions = async () => {

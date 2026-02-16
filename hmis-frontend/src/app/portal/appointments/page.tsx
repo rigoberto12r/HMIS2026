@@ -28,12 +28,15 @@ export default function PortalAppointmentsPage() {
   const [cancelReason, setCancelReason] = useState('');
 
   const fetchAppointments = useCallback(async () => {
+    const controller = new AbortController();
+
     try {
       const token = localStorage.getItem('portal_access_token');
       const response = await fetch(
         `${PORTAL_API_URL}/portal/appointments?include_past=${showPast}`,
         {
           headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
         }
       );
 
@@ -42,14 +45,22 @@ export default function PortalAppointmentsPage() {
       const data = await response.json();
       setAppointments(data);
     } catch (err) {
-      console.error(err);
+      if (err instanceof Error && err.name !== 'AbortError') {
+        console.error(err);
+      }
     } finally {
       setIsLoading(false);
     }
+
+    return controller;
   }, [showPast]);
 
   useEffect(() => {
-    fetchAppointments();
+    const controller = fetchAppointments();
+
+    return () => {
+      controller.then((ctrl) => ctrl.abort());
+    };
   }, [fetchAppointments]);
 
   const handleCancel = async (appointmentId: string) => {

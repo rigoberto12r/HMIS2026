@@ -101,7 +101,9 @@ export default function EncounterDetailPage() {
 
   // Populate SOAP form from latest note
   useEffect(() => {
-    if (notes.length > 0) {
+    let cancelled = false;
+
+    if (notes.length > 0 && !cancelled) {
       const latest = notes[notes.length - 1];
       setSoapForm({
         subjective: latest.subjective || '',
@@ -110,6 +112,10 @@ export default function EncounterDetailPage() {
         plan: latest.plan || '',
       });
     }
+
+    return () => {
+      cancelled = true;
+    };
   }, [notes]);
 
   // Success message helper

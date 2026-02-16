@@ -25,7 +25,40 @@ export default function PortalLabResultsPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    const controller = new AbortController();
+    let cancelled = false;
+
+    const fetchLabResults = async () => {
+      try {
+        const token = localStorage.getItem('portal_access_token');
+        const response = await fetch(`${PORTAL_API_URL}/portal/lab-results`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
+        });
+
+        if (!response.ok) throw new Error('Failed to load lab results');
+
+        const data = await response.json();
+        if (!cancelled) {
+          setLabResults(data);
+        }
+      } catch (err) {
+        if (!cancelled && err instanceof Error && err.name !== 'AbortError') {
+          console.error(err);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
     fetchLabResults();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
   }, []);
 
   const fetchLabResults = async () => {

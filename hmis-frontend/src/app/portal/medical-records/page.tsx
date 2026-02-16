@@ -48,7 +48,9 @@ export default function PortalMedicalRecordsPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
+    const controller = new AbortController();
     setIsLoading(true);
+
     try {
       const token = localStorage.getItem('portal_access_token');
       let url = '';
@@ -63,6 +65,7 @@ export default function PortalMedicalRecordsPage() {
 
       const response = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
       });
 
       if (!response.ok) throw new Error('Failed to load data');
@@ -73,14 +76,22 @@ export default function PortalMedicalRecordsPage() {
       else if (activeTab === 'diagnoses') setDiagnoses(data);
       else setVitals(data);
     } catch (err) {
-      console.error(err);
+      if (err instanceof Error && err.name !== 'AbortError') {
+        console.error(err);
+      }
     } finally {
       setIsLoading(false);
     }
+
+    return controller;
   }, [activeTab]);
 
   useEffect(() => {
-    fetchData();
+    const controller = fetchData();
+
+    return () => {
+      controller.then((ctrl) => ctrl.abort());
+    };
   }, [fetchData]);
 
   return (

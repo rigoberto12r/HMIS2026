@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Heart, Lock, Mail, AlertCircle, User, CreditCard, Calendar, Phone } from 'lucide-react';
+import { validatePhone } from '@/lib/utils/phone-validation';
+import { dateUtils } from '@/lib/utils/validation';
 
 export default function PortalRegisterPage() {
   const router = useRouter();
@@ -48,6 +50,23 @@ export default function PortalRegisterPage() {
     if (formData.password.length < 8) {
       setError('Password must be at least 8 characters');
       return;
+    }
+
+    // Validate phone numbers
+    if (formData.phone && formData.phone.trim() !== '') {
+      const phoneValidation = validatePhone(formData.phone);
+      if (!phoneValidation.valid) {
+        setError(phoneValidation.error || 'Invalid phone number');
+        return;
+      }
+    }
+
+    if (formData.mobile_phone && formData.mobile_phone.trim() !== '') {
+      const phoneValidation = validatePhone(formData.mobile_phone);
+      if (!phoneValidation.valid) {
+        setError('Invalid mobile phone number: ' + (phoneValidation.error || ''));
+        return;
+      }
     }
 
     setIsLoading(true);
@@ -165,6 +184,9 @@ export default function PortalRegisterPage() {
                   onChange={handleChange}
                   required
                   leftIcon={<Calendar className="w-4 h-4" />}
+                  max={dateUtils.getMaxBirthDate()}
+                  min={dateUtils.getMinBirthDate()}
+                  title="Birth date (maximum age 120 years)"
                 />
               </div>
             </div>
@@ -227,6 +249,8 @@ export default function PortalRegisterPage() {
                   placeholder="your.email@example.com"
                   leftIcon={<Mail className="w-4 h-4" />}
                   autoComplete="email"
+                  pattern="^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+                  title="Ingrese un correo válido (ej: usuario@ejemplo.com)"
                 />
                 <Input
                   label="Phone"
@@ -234,8 +258,9 @@ export default function PortalRegisterPage() {
                   type="tel"
                   value={formData.phone}
                   onChange={handleChange}
-                  placeholder="(123) 456-7890"
+                  placeholder="809-555-1234"
                   leftIcon={<Phone className="w-4 h-4" />}
+                  title="Format: 809-555-1234 or +1-809-555-1234"
                 />
                 <Input
                   label="Mobile Phone"
@@ -243,8 +268,9 @@ export default function PortalRegisterPage() {
                   type="tel"
                   value={formData.mobile_phone}
                   onChange={handleChange}
-                  placeholder="(123) 456-7890"
+                  placeholder="809-555-1234"
                   leftIcon={<Phone className="w-4 h-4" />}
+                  title="Format: 809-555-1234 or +1-809-555-1234"
                 />
               </div>
             </div>
