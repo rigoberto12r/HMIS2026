@@ -1,4 +1,5 @@
 'use client';
+import { parseFloatSafe } from '@/lib/utils/safe-parse';
 
 import { useState, useEffect } from 'react';
 import { Input, Select } from '@/components/ui/input';
@@ -6,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { AlertTriangle, CheckCircle, Loader2, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { useFiscalConfig, useSaveFiscalConfig, useValidateRNC } from '@/hooks/useFiscalConfig';
+import { captureException } from '@/lib/monitoring';
 
 const countryOptions = [
   { value: 'DO', label: 'República Dominicana' },
@@ -83,6 +85,11 @@ export function FiscalConfigSection() {
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err: any) {
+      captureException(err, {
+        context: 'save_fiscal_config',
+        countryCode: form.country_code,
+        fiscalRegime: form.fiscal_regime,
+      });
       toast.error(err?.detail || err?.message || 'Error al guardar configuración fiscal');
       setFormError(err?.detail || err?.message || 'Error al guardar configuración fiscal');
     }
@@ -177,7 +184,7 @@ export function FiscalConfigSection() {
             label="Tasa de Impuesto"
             type="number"
             value={form.default_tax_rate.toString()}
-            onChange={(e) => setForm({ ...form, default_tax_rate: parseFloat(e.target.value) || 0 })}
+            onChange={(e) => setForm({ ...form, default_tax_rate: parseFloatSafe(e.target.value, 0, 'Default Tax Rate') })}
             placeholder="0.18"
           />
           <Input

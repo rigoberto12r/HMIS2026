@@ -1,4 +1,5 @@
 'use client';
+import { parseIntSafe, parseFloatSafe } from '@/lib/utils/safe-parse';
 
 import { useState } from 'react';
 import { Modal } from '@/components/ui/modal';
@@ -9,6 +10,7 @@ import { toast } from 'sonner';
 import { useCreateAppointment } from '@/hooks/useAppointments';
 import { useProviders } from '@/hooks/useProviders';
 import { api } from '@/lib/api';
+import { captureException } from '@/lib/monitoring';
 
 interface CreateAppointmentModalProps {
   isOpen: boolean;
@@ -107,7 +109,7 @@ export function CreateAppointmentModal({ isOpen, onClose }: CreateAppointmentMod
 
     // Calculate scheduled_end from start + duration
     const startDate = new Date(form.scheduled_start);
-    const durationMs = parseInt(form.duration_minutes) * 60 * 1000;
+    const durationMs = parseIntSafe(form.duration_minutes, 30, 'Duration Minutes') * 60 * 1000;
     const endDate = new Date(startDate.getTime() + durationMs);
 
     try {
@@ -124,6 +126,14 @@ export function CreateAppointmentModal({ isOpen, onClose }: CreateAppointmentMod
       toast.success('Cita creada exitosamente');
       handleClose();
     } catch (err: any) {
+      captureException(err, {
+        context: 'create_appointment',
+        patientId: form.patient_id,
+        providerId: form.provider_id,
+        scheduledStart: form.scheduled_start,
+        appointmentType: form.appointment_type,
+      });
+
       const message = err?.detail || err?.message || 'Error al crear cita';
       if (message.includes('409') || message.includes('disponib') || message.includes('conflict')) {
         setFormError('El horario seleccionado no está disponible. Intente otro horario.');
@@ -265,11 +275,19 @@ export function CreateAppointmentModal({ isOpen, onClose }: CreateAppointmentMod
           <label className="block text-sm font-medium text-neutral-700 mb-1">Motivo</label>
           <textarea
             value={form.reason}
-            onChange={(e) => setForm({ ...form, reason: e.target.value })}
+            onChange={(e) => {
+              if (e.target.value.length <= 500) {
+                setForm({ ...form, reason: e.target.value });
+              }
+            }}
             placeholder="Motivo de la consulta..."
             rows={2}
+            maxLength={500}
             className="w-full px-3 py-2 border border-neutral-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
           />
+          <p className="text-xs text-neutral-400 mt-1">
+            {form.reason.length}/500 caracteres
+          </p>
         </div>
 
         {/* Notes */}
@@ -277,11 +295,19 @@ export function CreateAppointmentModal({ isOpen, onClose }: CreateAppointmentMod
           <label className="block text-sm font-medium text-neutral-700 mb-1">Notas (opcional)</label>
           <textarea
             value={form.notes}
-            onChange={(e) => setForm({ ...form, notes: e.target.value })}
+            onChange={(e) => {
+              if (e.target.value.length <= 500) {
+                setForm({ ...form, notes: e.target.value });
+              }
+            }}
             placeholder="Notas adicionales..."
             rows={2}
+            maxLength={500}
             className="w-full px-3 py-2 border border-neutral-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
           />
+          <p className="text-xs text-neutral-400 mt-1">
+            {form.notes.length}/500 caracteres
+          </p>
         </div>
       </div>
     </Modal>

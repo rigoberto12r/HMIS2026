@@ -10,6 +10,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.shared.utils import escape_like_pattern, parse_float_safe
+
 from app.modules.billing.models import (
     ChargeItem,
     FiscalConfig,
@@ -66,7 +68,8 @@ class ServiceCatalogService:
         count_stmt = select(func.count()).select_from(ServiceCatalog).where(ServiceCatalog.is_active == True)
 
         if query:
-            filter_q = ServiceCatalog.name.ilike(f"%{query}%")
+            safe_query = escape_like_pattern(query)
+            filter_q = ServiceCatalog.name.ilike(f"%{safe_query}%", escape="\\")
             stmt = stmt.where(filter_q)
             count_stmt = count_stmt.where(filter_q)
         if category:
@@ -127,7 +130,7 @@ class ChargeService:
             aggregate_id=str(charge.id),
             data={
                 "patient_id": str(data.patient_id),
-                "total": float(charge.total),
+                "total": parse_float_safe(charge.total, fallback=0.0, field_name="charge.total"),
             },
             user_id=str(charged_by) if charged_by else None,
         ))
@@ -215,10 +218,10 @@ class InvoiceService:
                 charge_item_id=charge.id,
                 description=charge.description,
                 quantity=charge.quantity,
-                unit_price=float(charge.unit_price),
-                discount=float(charge.discount),
-                tax=float(charge.tax),
-                line_total=float(charge.total),
+                unit_price=parse_float_safe(charge.unit_price, fallback=0.0, field_name="charge.unit_price"),
+                discount=parse_float_safe(charge.discount, fallback=0.0, field_name="charge.discount"),
+                tax=parse_float_safe(charge.tax, fallback=0.0, field_name="charge.tax"),
+                line_total=parse_float_safe(charge.total, fallback=0.0, field_name="charge.total"),
             )
             self.db.add(line)
             charge.status = "invoiced"
@@ -231,7 +234,7 @@ class InvoiceService:
             aggregate_id=str(invoice.id),
             data={
                 "patient_id": str(data.patient_id),
-                "grand_total": float(invoice.grand_total),
+                "grand_total": parse_float_safe(invoice.grand_total, fallback=0.0, field_name="invoice.grand_total"),
                 "invoice_number": invoice_number,
             },
             user_id=str(created_by) if created_by else None,
@@ -337,8 +340,8 @@ class PaymentService:
         invoice = result.scalar_one_or_none()
 
         if invoice:
-            total_paid = sum(float(p.amount) for p in invoice.payments)
-            if total_paid >= float(invoice.grand_total):
+            total_paid = sum(parse_float_safe(p.amount, fallback=0.0, field_name="payment.amount") for p in invoice.payments)
+            if total_paid >= parse_float_safe(invoice.grand_total, fallback=0.0, field_name="invoice.grand_total"):
                 invoice.status = "paid"
                 invoice.paid_date = datetime.now(timezone.utc).date()
             elif total_paid > 0:
@@ -352,7 +355,7 @@ class PaymentService:
             aggregate_id=str(payment.id),
             data={
                 "invoice_id": str(data.invoice_id),
-                "amount": float(data.amount),
+                "amount": parse_float_safe(data.amount, fallback=0.0, field_name="data.amount"),
                 "method": data.payment_method,
             },
             user_id=str(received_by) if received_by else None,
@@ -417,7 +420,7 @@ class InsuranceClaimService:
             aggregate_id=str(claim.id),
             data={
                 "insurer": claim.insurer_name,
-                "total_claimed": float(claim.total_claimed),
+                "total_claimed": parse_float_safe(claim.total_claimed, fallback=0.0, field_name="claim.total_claimed"),
             },
         ))
 
@@ -570,7 +573,7 @@ class InvoiceVoidService:
                 message=f"No se puede anular factura en estado '{invoice.status}'. "
                         "Solo facturas en borrador o emitidas."
             )
-        if invoice.payments and any(float(p.amount) > 0 for p in invoice.payments):
+        if invoice.payments and any(parse_float_safe(p.amount, fallback=0.0, field_name="payment.amount") > 0 for p in invoice.payments):
             raise BusinessRuleViolation(
                 rule="invoice_void_with_payments",
                 message="No se puede anular factura con pagos registrados. "
@@ -667,10 +670,10 @@ class PaymentReversalService:
         new_status = "issued"
         if invoice:
             remaining_paid = sum(
-                float(p.amount) for p in invoice.payments
+                parse_float_safe(p.amount, fallback=0.0, field_name="payment.amount") for p in invoice.payments
                 if p.is_active and p.id != payment_id
             )
-            if remaining_paid >= float(invoice.grand_total):
+            if remaining_paid >= parse_float_safe(invoice.grand_total, fallback=0.0, field_name="invoice.grand_total"):
                 new_status = "paid"
             elif remaining_paid > 0:
                 new_status = "partial"
@@ -702,9 +705,9 @@ class PaymentReversalService:
 
         return {
             "original_payment_id": str(payment.id),
-            "reversal_amount": float(payment.amount),
+            "reversal_amount": parse_float_safe(payment.amount, fallback=0.0, field_name="payment.amount"),
             "reason": reason,
             "invoice_id": str(payment.invoice_id),
             "new_invoice_status": new_status,
-            "mensaje": f"Pago de {float(payment.amount):.2f} reversado exitosamente",
+            "mensaje": f"Pago de {parse_float_safe(payment.amount, fallback=0.0, field_name='payment.amount'):.2f} reversado exitosamente",
         }

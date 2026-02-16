@@ -5,7 +5,7 @@ Business logic for generating C-CDA documents from patient records.
 Orchestrates data fetching from multiple repositories and document generation.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -130,7 +130,7 @@ class CCDAService:
             author_info=author_info,
             custodian_info=custodian_info,
             encounter_info=encounter_info,
-            effective_time=datetime.utcnow(),
+            effective_time=datetime.now(timezone.utc),
         )
 
         return ccd_xml

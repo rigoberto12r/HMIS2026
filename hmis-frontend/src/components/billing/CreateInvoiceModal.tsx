@@ -1,4 +1,5 @@
 'use client';
+import { parseIntSafe, parseFloatSafe } from '@/lib/utils/safe-parse';
 
 import { useState } from 'react';
 import { Modal } from '@/components/ui/modal';
@@ -8,6 +9,7 @@ import { AlertTriangle, Loader2, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCreateInvoice } from '@/hooks/useInvoices';
 import { api } from '@/lib/api';
+import { captureException } from '@/lib/monitoring';
 
 interface CreateInvoiceModalProps {
   isOpen: boolean;
@@ -154,7 +156,15 @@ export function CreateInvoiceModal({ isOpen, onClose }: CreateInvoiceModalProps)
       setFormError(null);
       onClose();
     } catch (err: any) {
+      captureException(err, {
+        context: 'create_invoice',
+        patientId: formData.patient_id,
+        itemsCount: formData.items.length,
+        fiscalType: formData.fiscal_type,
+      });
+
       const message = err?.detail || err?.message || 'Error al crear factura';
+      toast.error(message);
       setFormError(message);
     }
   };
@@ -326,7 +336,10 @@ export function CreateInvoiceModal({ isOpen, onClose }: CreateInvoiceModalProps)
                     label={idx === 0 ? 'Cant.' : undefined}
                     type="number"
                     value={item.quantity.toString()}
-                    onChange={(e) => handleItemChange(idx, 'quantity', parseInt(e.target.value) || 1)}
+                    onChange={(e) => handleItemChange(idx, 'quantity', parseIntSafe(e.target.value, 1, 'Quantity'))}
+                    min="1"
+                    step="1"
+                    title="Cantidad debe ser al menos 1"
                   />
                 </div>
                 <div className="col-span-3">
@@ -334,7 +347,10 @@ export function CreateInvoiceModal({ isOpen, onClose }: CreateInvoiceModalProps)
                     label={idx === 0 ? 'Precio Unit.' : undefined}
                     type="number"
                     value={item.unit_price.toString()}
-                    onChange={(e) => handleItemChange(idx, 'unit_price', parseFloat(e.target.value) || 0)}
+                    onChange={(e) => handleItemChange(idx, 'unit_price', parseFloatSafe(e.target.value, 0, 'Unit Price'))}
+                    min="0"
+                    step="0.01"
+                    title="Precio debe ser un número positivo"
                   />
                 </div>
                 <div className="col-span-1">

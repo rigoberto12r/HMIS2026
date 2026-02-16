@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.modules.auth.dependencies import get_current_active_user, require_permissions
 from app.modules.auth.models import User
+from app.shared.utils import parse_float_safe
 from app.modules.billing.models import Invoice, StripeCustomer, StripePaymentIntent
 from app.modules.billing.schemas import (
     StripeCustomerResponse,
@@ -66,7 +67,7 @@ async def create_payment_intent(
             raise HTTPException(status_code=400, detail="Invoice already paid")
 
         # Verify amount matches invoice total
-        if abs(float(invoice.grand_total) - data.amount) > 0.01:
+        if abs(parse_float_safe(invoice.grand_total, fallback=0.0, field_name="invoice.grand_total") - data.amount) > 0.01:
             raise HTTPException(
                 status_code=400,
                 detail=f"Payment amount ({data.amount}) does not match invoice total ({invoice.grand_total})",

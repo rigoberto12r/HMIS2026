@@ -1,4 +1,5 @@
 'use client';
+import { parseIntSafe } from '@/lib/utils/safe-parse';
 
 import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
@@ -61,7 +62,31 @@ export function ScheduledReports({ reportDefinitions }: Props) {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+
+    const loadScheduledReports = async () => {
+      setLoading(true);
+      try {
+        const data = await api.get<ScheduledReport[]>('/reports/scheduled');
+        if (!cancelled) {
+          setScheduledReports(data);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to load scheduled reports:', error);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
     loadScheduledReports();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const loadScheduledReports = async () => {
@@ -381,7 +406,7 @@ export function ScheduledReports({ reportDefinitions }: Props) {
                 </label>
                 <Select
                   value={String(dayOfWeek)}
-                  onChange={(e) => setDayOfWeek(parseInt(e.target.value))}
+                  onChange={(e) => setDayOfWeek(parseIntSafe(e.target.value, 0, 'Day of Week'))}
                   options={[
                     { value: '0', label: 'Monday' },
                     { value: '1', label: 'Tuesday' },
@@ -405,7 +430,7 @@ export function ScheduledReports({ reportDefinitions }: Props) {
                   min="1"
                   max="31"
                   value={dayOfMonth}
-                  onChange={(e) => setDayOfMonth(parseInt(e.target.value))}
+                  onChange={(e) => setDayOfMonth(parseIntSafe(e.target.value, 1, 'Day of Month'))}
                 />
               </div>
             )}
@@ -420,7 +445,7 @@ export function ScheduledReports({ reportDefinitions }: Props) {
                   min="0"
                   max="23"
                   value={hour}
-                  onChange={(e) => setHour(parseInt(e.target.value))}
+                  onChange={(e) => setHour(parseIntSafe(e.target.value, 0, 'Hour'))}
                 />
               </div>
               <div>
@@ -432,7 +457,7 @@ export function ScheduledReports({ reportDefinitions }: Props) {
                   min="0"
                   max="59"
                   value={minute}
-                  onChange={(e) => setMinute(parseInt(e.target.value))}
+                  onChange={(e) => setMinute(parseIntSafe(e.target.value, 0, 'Minute'))}
                 />
               </div>
             </div>

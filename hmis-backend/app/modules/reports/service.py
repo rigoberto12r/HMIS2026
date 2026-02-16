@@ -21,6 +21,8 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from sqlalchemy import func, select, and_, or_, desc, asc
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.shared.utils import escape_like_pattern, parse_float_safe
+
 from app.modules.appointments.models import Appointment, Provider
 from app.modules.billing.models import Invoice, Payment, InsuranceClaim, ChargeItem
 from app.modules.emr.models import Encounter, Diagnosis
@@ -132,7 +134,7 @@ class ReportService:
 
         return {
             "gender_distribution": [
-                {"gender": row.gender, "count": row.count, "avg_age": float(row.avg_age or 0)}
+                {"gender": row.gender, "count": row.count, "avg_age": parse_float_safe(row.avg_age or 0, fallback=0.0, field_name="avg_age")}
                 for row in gender_stats
             ],
             "age_distribution": [
@@ -328,7 +330,7 @@ class ReportService:
                 {
                     "status": row.status,
                     "count": row.count,
-                    "total_amount": float(row.total_amount or 0),
+                    "total_amount": parse_float_safe(row.total_amount or 0, fallback=0.0, field_name="total_amount"),
                 }
                 for row in invoice_stats
             ],
@@ -336,12 +338,12 @@ class ReportService:
                 {
                     "method": row.payment_method,
                     "count": row.count,
-                    "total_amount": float(row.total_amount or 0),
+                    "total_amount": parse_float_safe(row.total_amount or 0, fallback=0.0, field_name="total_amount"),
                 }
                 for row in payment_stats
             ],
             "top_services": [
-                {"service": row.description, "total_revenue": float(row.total_amount or 0)}
+                {"service": row.description, "total_revenue": parse_float_safe(row.total_amount or 0, fallback=0.0, field_name="total_amount")}
                 for row in charge_stats
             ],
         }
@@ -380,9 +382,9 @@ class ReportService:
                     "insurer": row.insurer_name,
                     "status": row.status,
                     "count": row.count,
-                    "total_claimed": float(row.total_claimed or 0),
-                    "total_approved": float(row.total_approved or 0),
-                    "total_denied": float(row.total_denied or 0),
+                    "total_claimed": parse_float_safe(row.total_claimed or 0, fallback=0.0, field_name="total_claimed"),
+                    "total_approved": parse_float_safe(row.total_approved or 0, fallback=0.0, field_name="total_approved"),
+                    "total_denied": parse_float_safe(row.total_denied or 0, fallback=0.0, field_name="total_denied"),
                     "approval_rate": (
                         round(
                             (row.total_approved or 0) / (row.total_claimed or 1) * 100,
@@ -554,7 +556,8 @@ class ReportService:
         elif filter_spec.operator == "not_equals":
             return query.where(field != filter_spec.value)
         elif filter_spec.operator == "contains":
-            return query.where(field.ilike(f"%{filter_spec.value}%"))
+            safe_value = escape_like_pattern(str(filter_spec.value))
+            return query.where(field.ilike(f"%{safe_value}%", escape="\\"))
         elif filter_spec.operator == "gt":
             return query.where(field > filter_spec.value)
         elif filter_spec.operator == "gte":

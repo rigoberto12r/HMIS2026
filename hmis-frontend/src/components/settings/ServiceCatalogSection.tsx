@@ -1,4 +1,5 @@
 'use client';
+import { parseIntSafe, parseFloatSafe } from '@/lib/utils/safe-parse';
 
 import { useState } from 'react';
 import { Modal } from '@/components/ui/modal';
@@ -7,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { AlertTriangle, Loader2, Plus, Trash2, Edit2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useServices, useCreateService, useUpdateService, useDeleteService, type ServiceCatalog } from '@/hooks/useServices';
+import { captureException } from '@/lib/monitoring';
 
 const categoryOptions = [
   { value: '', label: 'Seleccionar categoría' },
@@ -85,6 +87,12 @@ export function ServiceCatalogSection() {
       setForm(emptyForm);
       setFormError(null);
     } catch (err: any) {
+      captureException(err, {
+        context: editService ? 'update_service' : 'create_service',
+        serviceId: editService?.id,
+        serviceCode: form.code,
+        category: form.category,
+      });
       setFormError(err?.detail || err?.message || 'Error al guardar servicio');
     }
   };
@@ -96,6 +104,10 @@ export function ServiceCatalogSection() {
       toast.success('Servicio eliminado');
       setDeleteServiceId(null);
     } catch (err: any) {
+      captureException(err, {
+        context: 'delete_service',
+        serviceId: deleteServiceId,
+      });
       toast.error(err?.detail || err?.message || 'Error al eliminar servicio');
     }
   };
@@ -134,8 +146,8 @@ export function ServiceCatalogSection() {
         <Input label="Nombre *" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Consulta General" />
         <Input label="Descripción" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
         <div className="grid grid-cols-3 gap-4">
-          <Input label="Precio Base *" type="number" value={form.base_price.toString()} onChange={(e) => setForm({ ...form, base_price: parseFloat(e.target.value) || 0 })} />
-          <Input label="Tasa ITBIS" type="number" value={form.tax_rate.toString()} onChange={(e) => setForm({ ...form, tax_rate: parseFloat(e.target.value) || 0 })} placeholder="0.18" />
+          <Input label="Precio Base *" type="number" value={form.base_price.toString()} onChange={(e) => setForm({ ...form, base_price: parseFloatSafe(e.target.value, 0, 'Base Price') })} />
+          <Input label="Tasa ITBIS" type="number" value={form.tax_rate.toString()} onChange={(e) => setForm({ ...form, tax_rate: parseFloatSafe(e.target.value, 0, 'Tax Rate') })} placeholder="0.18" />
           <Input label="Código CPT" value={form.cpt_code} onChange={(e) => setForm({ ...form, cpt_code: e.target.value })} placeholder="99213" />
         </div>
       </div>

@@ -1,4 +1,5 @@
 'use client';
+import { parseIntSafe, parseFloatSafe } from '@/lib/utils/safe-parse';
 
 import { useState } from 'react';
 import { Card } from '@/components/ui/card';
@@ -387,7 +388,7 @@ export function ReportBuilder({ onSave }: Props) {
           onChange={(e) =>
             setQueryConfig({
               ...queryConfig,
-              limit: e.target.value ? parseInt(e.target.value) : null,
+              limit: e.target.value ? parseIntSafe(e.target.value, 100, 'Result Limit') : null,
             })
           }
           placeholder="Leave empty for no limit"

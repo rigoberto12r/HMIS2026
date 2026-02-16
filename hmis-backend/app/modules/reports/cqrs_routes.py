@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_read_db, get_db, current_tenant
 from app.modules.auth.dependencies import get_current_user
+from app.shared.utils import parse_float_safe
 from app.cqrs.queries import (
     BillingQueryHandler,
     ClinicalQueryHandler,
@@ -223,7 +224,7 @@ async def create_invoice_cqrs(
     return {
         "invoice_id": str(invoice.id),
         "invoice_number": invoice.invoice_number,
-        "grand_total": float(invoice.grand_total),
+        "grand_total": parse_float_safe(invoice.grand_total, fallback=0.0, field_name="invoice.grand_total"),
         "status": invoice.status,
         "message": "Invoice created successfully. Projections will be updated asynchronously.",
     }

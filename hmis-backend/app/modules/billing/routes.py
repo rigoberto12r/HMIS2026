@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db, current_tenant
 from app.modules.auth.dependencies import get_current_active_user, require_permissions
 from app.modules.auth.models import User
+from app.shared.utils import parse_float_safe
 from app.modules.billing.schemas import (
     AccountCreate,
     AccountResponse,
@@ -298,17 +299,17 @@ async def download_invoice_pdf(
                 {
                     "description": line.description,
                     "quantity": line.quantity,
-                    "unit_price": float(line.unit_price),
-                    "discount": float(line.discount),
-                    "tax": float(line.tax),
-                    "line_total": float(line.line_total),
+                    "unit_price": parse_float_safe(line.unit_price, fallback=0.0, field_name="line.unit_price"),
+                    "discount": parse_float_safe(line.discount, fallback=0.0, field_name="line.discount"),
+                    "tax": parse_float_safe(line.tax, fallback=0.0, field_name="line.tax"),
+                    "line_total": parse_float_safe(line.line_total, fallback=0.0, field_name="line.line_total"),
                 }
                 for line in invoice.lines
             ],
-            "subtotal": float(invoice.subtotal),
-            "discount_total": float(invoice.discount_total),
-            "tax_total": float(invoice.tax_total),
-            "grand_total": float(invoice.grand_total),
+            "subtotal": parse_float_safe(invoice.subtotal, fallback=0.0, field_name="invoice.subtotal"),
+            "discount_total": parse_float_safe(invoice.discount_total, fallback=0.0, field_name="invoice.discount_total"),
+            "tax_total": parse_float_safe(invoice.tax_total, fallback=0.0, field_name="invoice.tax_total"),
+            "grand_total": parse_float_safe(invoice.grand_total, fallback=0.0, field_name="invoice.grand_total"),
             "currency": invoice.currency,
             "fiscal_type": invoice.fiscal_type,
             "country_code": invoice.country_code,
@@ -727,8 +728,8 @@ async def generate_dgii_report(
             "tipo_identificacion": 1 if len(inv.customer_tax_id or "") == 9 else 2,
             "ncf": inv.fiscal_number or inv.invoice_number,
             "fecha_comprobante": inv.created_at.strftime("%Y%m%d") if inv.created_at else "",
-            "monto_facturado": float(inv.grand_total),
-            "itbis_facturado": float(inv.tax_total),
+            "monto_facturado": parse_float_safe(inv.grand_total, fallback=0.0, field_name="inv.grand_total"),
+            "itbis_facturado": parse_float_safe(inv.tax_total, fallback=0.0, field_name="inv.tax_total"),
             "status": inv.status,
         }
         for inv in invoices
@@ -825,14 +826,14 @@ async def get_billing_stats(
         invoice_stmt.subquery()
     )
     total_billed_result = await db.execute(total_billed_stmt)
-    total_billed = float(total_billed_result.scalar_one() or 0)
+    total_billed = parse_float_safe(total_billed_result.scalar_one() or 0, fallback=0.0, field_name="total_billed")
     
     # Total cobrado (facturas pagadas)
     paid_stmt = select(func.sum(Invoice.grand_total)).select_from(
         invoice_stmt.where(Invoice.status == "paid").subquery()
     )
     paid_result = await db.execute(paid_stmt)
-    total_collected = float(paid_result.scalar_one() or 0)
+    total_collected = parse_float_safe(paid_result.scalar_one() or 0, fallback=0.0, field_name="total_collected")
     
     # Pendiente de cobro
     total_pending = total_billed - total_collected

@@ -1,4 +1,5 @@
 'use client';
+import { parseIntSafe } from '@/lib/utils/safe-parse';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -129,7 +130,7 @@ export default function NewAppointmentPage() {
 
     // Calculate scheduled_end from start + duration
     const startDate = new Date(form.scheduled_start);
-    const durationMs = parseInt(form.duration_minutes) * 60 * 1000;
+    const durationMs = parseIntSafe(form.duration_minutes, 30, 'Duration Minutes') * 60 * 1000;
     const endDate = new Date(startDate.getTime() + durationMs);
 
     try {

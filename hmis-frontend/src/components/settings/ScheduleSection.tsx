@@ -1,4 +1,5 @@
 'use client';
+import { parseIntSafe } from '@/lib/utils/safe-parse';
 
 import { useState } from 'react';
 import { Modal } from '@/components/ui/modal';
@@ -85,11 +86,11 @@ export function ScheduleSection() {
     try {
       await createTemplate.mutateAsync({
         provider_id: templateForm.provider_id,
-        day_of_week: parseInt(templateForm.day_of_week),
+        day_of_week: parseIntSafe(templateForm.day_of_week, 0, 'Day of Week'),
         start_time: templateForm.start_time,
         end_time: templateForm.end_time,
-        slot_duration_min: parseInt(templateForm.slot_duration_min) || 30,
-        max_overbooking: parseInt(templateForm.max_overbooking) || 0,
+        slot_duration_min: parseIntSafe(templateForm.slot_duration_min, 30, 'Slot Duration'),
+        max_overbooking: parseIntSafe(templateForm.max_overbooking, 0, 'Max Overbooking'),
       });
       toast.success('Horario creado exitosamente');
       setShowTemplateModal(false);

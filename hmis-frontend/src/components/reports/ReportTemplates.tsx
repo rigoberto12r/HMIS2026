@@ -1,4 +1,5 @@
 'use client';
+import { parseIntSafe } from '@/lib/utils/safe-parse';
 
 import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
@@ -57,7 +58,31 @@ export function ReportTemplates({ onExecutionComplete }: Props) {
   const [exportFormat, setExportFormat] = useState<'json' | 'csv' | 'excel' | 'pdf'>('json');
 
   useEffect(() => {
+    let cancelled = false;
+
+    const loadTemplates = async () => {
+      setLoading(true);
+      try {
+        const data = await api.get<ReportTemplatesData>('/reports/templates');
+        if (!cancelled) {
+          setTemplates(data);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to load templates:', error);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
     loadTemplates();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const loadTemplates = async () => {
@@ -255,7 +280,7 @@ export function ReportTemplates({ onExecutionComplete }: Props) {
                         type="number"
                         value={parameters[param.name] || param.default || ''}
                         onChange={(e) =>
-                          setParameters({ ...parameters, [param.name]: parseInt(e.target.value) })
+                          setParameters({ ...parameters, [param.name]: parseIntSafe(e.target.value, 0, param.name) })
                         }
                       />
                     ) : (

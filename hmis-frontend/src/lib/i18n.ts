@@ -3,6 +3,8 @@
  * Supports: Spanish (es), English (en), Portuguese (pt)
  */
 
+import { parseFloatSafe } from '@/lib/utils/safe-parse';
+
 export const locales = ['es', 'en', 'pt'] as const;
 export type Locale = (typeof locales)[number];
 
@@ -48,7 +50,7 @@ export function getLocaleFromHeader(header: string | null): Locale {
     .split(',')
     .map((lang) => {
       const [code, qValue] = lang.trim().split(';');
-      const q = qValue ? parseFloat(qValue.split('=')[1]) : 1.0;
+      const q = qValue ? parseFloatSafe(qValue.split('=')[1], 1.0, 'Accept-Language q-value') : 1.0;
       return { code: code.split('-')[0].toLowerCase(), q };
     })
     .sort((a, b) => b.q - a.q);

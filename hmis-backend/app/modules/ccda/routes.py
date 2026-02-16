@@ -4,7 +4,7 @@ C-CDA REST API Routes.
 Endpoints for generating and downloading C-CDA documents.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Response, status
@@ -93,14 +93,14 @@ async def get_patient_ccd(
         # Prepare response headers
         headers = {
             "X-Document-Type": "C-CDA-R2.1-CCD",
-            "X-Generated-At": datetime.utcnow().isoformat(),
+            "X-Generated-At": datetime.now(timezone.utc).isoformat(),
         }
 
         # Content-Disposition header
         if download:
             # Get patient MRN for filename
             # For now, use patient_id
-            timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+            timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
             filename = f"CCD_{patient_id[:8]}_{timestamp}.xml"
             headers["Content-Disposition"] = f'attachment; filename="{filename}"'
         else:

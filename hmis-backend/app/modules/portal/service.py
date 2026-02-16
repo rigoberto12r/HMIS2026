@@ -4,13 +4,14 @@ Business logic for patient portal operations.
 """
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy import and_, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import create_access_token, create_refresh_token, hash_password
+from app.shared.utils import parse_float_safe
 from app.modules.appointments.models import Appointment, Provider
 from app.modules.auth.models import User
 from app.modules.billing.models import Invoice, Payment
@@ -164,7 +165,7 @@ class PortalService:
             return None
 
         # Update last login
-        portal_account.last_login_at = datetime.utcnow()
+        portal_account.last_login_at = datetime.now(timezone.utc)
         await self.db.commit()
 
         # Generate tokens
@@ -230,7 +231,7 @@ class PortalService:
         )
 
         if not include_past:
-            query = query.where(Appointment.scheduled_start >= datetime.utcnow())
+            query = query.where(Appointment.scheduled_start >= datetime.now(timezone.utc))
 
         query = query.order_by(Appointment.scheduled_start)
 
@@ -238,7 +239,7 @@ class PortalService:
         appointments = result.all()
 
         response_list = []
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         for appt, provider in appointments:
             # Can cancel if appointment is more than 24 hours away and not already completed
             can_cancel = (
@@ -272,7 +273,7 @@ class PortalService:
             return False
 
         # Check if cancellation is allowed
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         if appt.scheduled_start <= now + timedelta(hours=24):
             raise ValueError("Cannot cancel appointment less than 24 hours before scheduled time")
 
@@ -512,8 +513,8 @@ class PortalService:
                 PortalInvoiceLineItem(
                     description="Medical Services",
                     quantity=1,
-                    unit_price=float(inv.total_amount),
-                    total=float(inv.total_amount),
+                    unit_price=parse_float_safe(inv.total_amount, fallback=0.0, field_name="inv.total_amount"),
+                    total=parse_float_safe(inv.total_amount, fallback=0.0, field_name="inv.total_amount"),
                 )
             ]
 
@@ -523,11 +524,11 @@ class PortalService:
                     invoice_number=inv.invoice_number,
                     invoice_date=inv.invoice_date,
                     due_date=inv.due_date,
-                    subtotal=float(inv.subtotal),
-                    tax=float(inv.tax_amount),
-                    total=float(inv.total_amount),
-                    amount_paid=float(inv.amount_paid),
-                    balance_due=float(inv.balance_due),
+                    subtotal=parse_float_safe(inv.subtotal, fallback=0.0, field_name="inv.subtotal"),
+                    tax=parse_float_safe(inv.tax_amount, fallback=0.0, field_name="inv.tax_amount"),
+                    total=parse_float_safe(inv.total_amount, fallback=0.0, field_name="inv.total_amount"),
+                    amount_paid=parse_float_safe(inv.amount_paid, fallback=0.0, field_name="inv.amount_paid"),
+                    balance_due=parse_float_safe(inv.balance_due, fallback=0.0, field_name="inv.balance_due"),
                     status=inv.status,
                     ncf_number=inv.ncf_number,
                     encounter_date=None,  # TODO: Join encounter if needed
@@ -556,7 +557,7 @@ class PortalService:
             PortalPaymentHistoryResponse(
                 id=payment.id,
                 payment_date=payment.payment_date,
-                amount=float(payment.amount),
+                amount=parse_float_safe(payment.amount, fallback=0.0, field_name="payment.amount"),
                 payment_method=payment.payment_method,
                 reference_number=payment.transaction_reference,
                 invoice_number=invoice.invoice_number,
@@ -575,7 +576,7 @@ class PortalService:
             select(func.count(Appointment.id)).where(
                 and_(
                     Appointment.patient_id == patient_id,
-                    Appointment.scheduled_start >= datetime.utcnow(),
+                    Appointment.scheduled_start >= datetime.now(timezone.utc),
                     Appointment.status.in_(["scheduled", "confirmed"]),
                 )
             )
@@ -618,7 +619,7 @@ class PortalService:
             upcoming_appointments_count=upcoming_appts or 0,
             pending_prescriptions_count=pending_prescriptions or 0,
             unread_lab_results_count=0,  # TODO: Implement lab results
-            outstanding_balance=float(outstanding_balance or 0),
+            outstanding_balance=parse_float_safe(outstanding_balance or 0, fallback=0.0, field_name="outstanding_balance"),
             last_visit_date=last_visit,
         )
 

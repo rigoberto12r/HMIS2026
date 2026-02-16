@@ -1,4 +1,5 @@
 'use client';
+import { parseIntSafe, parseFloatSafe } from '@/lib/utils/safe-parse';
 
 import { useState } from 'react';
 import { Modal } from '@/components/ui/modal';
@@ -8,6 +9,7 @@ import { AlertTriangle, Loader2, Package } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDispensePrescription, useProductLots } from '@/hooks/usePharmacyData';
 import type { Prescription, Lot } from '@/app/(app)/pharmacy/types';
+import { captureException } from '@/lib/monitoring';
 
 interface DispenseModalProps {
   isOpen: boolean;
@@ -63,6 +65,13 @@ export function DispenseModal({ isOpen, onClose, prescription }: DispenseModalPr
       toast.success('Medicamento dispensado exitosamente');
       handleClose();
     } catch (err: any) {
+      captureException(err, {
+        context: 'dispense_medication',
+        prescriptionId: prescription.id,
+        lotId: selectedLotId,
+        quantity,
+      });
+
       const message = err?.detail || err?.message || 'Error al dispensar medicamento';
       toast.error(message);
       setFormError(message);
@@ -205,10 +214,14 @@ export function DispenseModal({ isOpen, onClose, prescription }: DispenseModalPr
             type="number"
             value={quantity.toString()}
             onChange={(e) => {
-              setQuantity(parseInt(e.target.value) || 0);
+              setQuantity(parseIntSafe(e.target.value, 0, 'Quantity'));
               setFormError(null);
             }}
             placeholder="Ingrese cantidad"
+            min="1"
+            step="1"
+            max={selectedLot?.quantity_available || undefined}
+            title={selectedLot ? `Máximo disponible: ${selectedLot.quantity_available}` : 'Seleccione un lote primero'}
           />
           {selectedLot && (
             <p className="text-xs text-neutral-400 mt-1">
@@ -224,11 +237,19 @@ export function DispenseModal({ isOpen, onClose, prescription }: DispenseModalPr
           </label>
           <textarea
             value={notes}
-            onChange={(e) => setNotes(e.target.value)}
+            onChange={(e) => {
+              if (e.target.value.length <= 500) {
+                setNotes(e.target.value);
+              }
+            }}
             placeholder="Notas adicionales sobre la dispensación..."
             rows={2}
+            maxLength={500}
             className="w-full px-3 py-2 border border-neutral-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
           />
+          <p className="text-xs text-neutral-400 mt-1">
+            {notes.length}/500 caracteres
+          </p>
         </div>
       </div>
     </Modal>

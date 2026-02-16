@@ -10,6 +10,8 @@ from sqlalchemy import func, select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.shared.utils import parse_float_safe
+
 from app.modules.billing.models import (
     Account,
     CreditNote,
@@ -203,8 +205,8 @@ class AccountingService:
         reversal_lines = [
             {
                 "account_id": line.account_id,
-                "debit": float(line.credit),
-                "credit": float(line.debit),
+                "debit": parse_float_safe(line.credit, fallback=0.0, field_name="line.credit"),
+                "credit": parse_float_safe(line.debit, fallback=0.0, field_name="line.debit"),
                 "description": f"Reversa: {line.description or ''}",
             }
             for line in original.lines
@@ -290,23 +292,23 @@ class AccountingService:
         lines = [
             {
                 "account_id": cxc.id,
-                "debit": float(invoice.grand_total),
+                "debit": parse_float_safe(invoice.grand_total, fallback=0.0, field_name="invoice.grand_total"),
                 "credit": 0,
                 "description": f"CxC Factura {invoice.invoice_number}",
             },
             {
                 "account_id": ingreso.id,
                 "debit": 0,
-                "credit": float(invoice.subtotal),
+                "credit": parse_float_safe(invoice.subtotal, fallback=0.0, field_name="invoice.subtotal"),
                 "description": f"Ingreso Factura {invoice.invoice_number}",
             },
         ]
 
-        if float(invoice.tax_total) > 0:
+        if parse_float_safe(invoice.tax_total, fallback=0.0, field_name="invoice.tax_total") > 0:
             lines.append({
                 "account_id": itbis.id,
                 "debit": 0,
-                "credit": float(invoice.tax_total),
+                "credit": parse_float_safe(invoice.tax_total, fallback=0.0, field_name="invoice.tax_total"),
                 "description": f"ITBIS Factura {invoice.invoice_number}",
             })
 
@@ -350,14 +352,14 @@ class AccountingService:
             lines=[
                 {
                     "account_id": cash_account.id,
-                    "debit": float(payment.amount),
+                    "debit": parse_float_safe(payment.amount, fallback=0.0, field_name="payment.amount"),
                     "credit": 0,
                     "description": f"Cobro {payment.payment_method} ref:{payment.reference_number or 'N/A'}",
                 },
                 {
                     "account_id": cxc.id,
                     "debit": 0,
-                    "credit": float(payment.amount),
+                    "credit": parse_float_safe(payment.amount, fallback=0.0, field_name="payment.amount"),
                     "description": f"Aplicacion pago a Factura {invoice.invoice_number}",
                 },
             ],
@@ -385,22 +387,22 @@ class AccountingService:
         lines = [
             {
                 "account_id": devoluciones.id,
-                "debit": float(credit_note.subtotal),
+                "debit": parse_float_safe(credit_note.subtotal, fallback=0.0, field_name="credit_note.subtotal"),
                 "credit": 0,
                 "description": f"NC {credit_note.credit_note_number} - {credit_note.reason}",
             },
             {
                 "account_id": cxc.id,
                 "debit": 0,
-                "credit": float(credit_note.grand_total),
+                "credit": parse_float_safe(credit_note.grand_total, fallback=0.0, field_name="credit_note.grand_total"),
                 "description": f"Reduccion CxC por NC {credit_note.credit_note_number}",
             },
         ]
 
-        if float(credit_note.tax_total) > 0 and itbis:
+        if parse_float_safe(credit_note.tax_total, fallback=0.0, field_name="credit_note.tax_total") > 0 and itbis:
             lines.insert(1, {
                 "account_id": itbis.id,
-                "debit": float(credit_note.tax_total),
+                "debit": parse_float_safe(credit_note.tax_total, fallback=0.0, field_name="credit_note.tax_total"),
                 "credit": 0,
                 "description": f"Reversa ITBIS NC {credit_note.credit_note_number}",
             })
@@ -446,8 +448,8 @@ class AccountingService:
             )
             result = await self.db.execute(stmt)
             row = result.one()
-            debit_sum = float(row[0])
-            credit_sum = float(row[1])
+            debit_sum = parse_float_safe(row[0], fallback=0.0, field_name="debit_sum")
+            credit_sum = parse_float_safe(row[1], fallback=0.0, field_name="credit_sum")
 
             if debit_sum > 0 or credit_sum > 0:
                 # Calcular saldo neto
@@ -502,8 +504,8 @@ class AccountingService:
         }
 
         for inv in invoices:
-            total_paid = sum(float(p.amount) for p in inv.payments)
-            balance = float(inv.grand_total) - total_paid
+            total_paid = sum(parse_float_safe(p.amount, fallback=0.0, field_name="payment.amount") for p in inv.payments)
+            balance = parse_float_safe(inv.grand_total, fallback=0.0, field_name="inv.grand_total") - total_paid
 
             if balance <= 0:
                 continue
@@ -540,7 +542,7 @@ class AccountingService:
                 "fiscal_number": inv.fiscal_number,
                 "invoice_date": inv.created_at.date().isoformat(),
                 "due_date": inv.due_date.isoformat() if inv.due_date else None,
-                "grand_total": float(inv.grand_total),
+                "grand_total": parse_float_safe(inv.grand_total, fallback=0.0, field_name="inv.grand_total"),
                 "total_paid": total_paid,
                 "balance": round(balance, 2),
                 "days_outstanding": max(days, 0),
@@ -607,13 +609,13 @@ class CreditNoteService:
                     "original_invoice_line_id": line.id,
                     "description": line.description,
                     "quantity": line.quantity,
-                    "unit_price": float(line.unit_price),
-                    "tax": float(line.tax),
+                    "unit_price": parse_float_safe(line.unit_price, fallback=0.0, field_name="line.unit_price"),
+                    "tax": parse_float_safe(line.tax, fallback=0.0, field_name="line.tax"),
                 }
                 for line in invoice.lines
             ]
-            subtotal = float(invoice.subtotal)
-            tax_total = float(invoice.tax_total)
+            subtotal = parse_float_safe(invoice.subtotal, fallback=0.0, field_name="invoice.subtotal")
+            tax_total = parse_float_safe(invoice.tax_total, fallback=0.0, field_name="invoice.tax_total")
         else:
             cn_lines_data = lines or []
             subtotal = sum(

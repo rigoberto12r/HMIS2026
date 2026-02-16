@@ -13,6 +13,7 @@ from app.core.database import get_db
 from app.core.security import decode_token
 from app.modules.auth.dependencies import get_current_user
 from app.modules.auth.models import User
+from app.shared.utils import parse_float_safe
 
 from .schemas import (
     PatientLoginRequest,
@@ -411,7 +412,7 @@ async def pay_invoice(
 
         stripe_service = StripePaymentService(db)
         result = await stripe_service.create_payment_intent(
-            amount=float(invoice.balance_due or invoice.total_amount),
+            amount=parse_float_safe(invoice.balance_due or invoice.total_amount, fallback=0.0, field_name="invoice amount"),
             currency=getattr(invoice, "currency", "DOP").lower(),
             invoice_id=invoice.id,
             patient_id=patient_id,

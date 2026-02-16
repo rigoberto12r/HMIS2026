@@ -4,6 +4,9 @@ import { useState } from 'react';
 import { Card, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { parseFloatSafe } from '@/lib/utils/safe-parse';
+import { validateVitalSign } from '@/lib/utils/validation';
+import { toast } from 'sonner';
 import {
   Activity,
   Heart,
@@ -106,11 +109,33 @@ export function VitalSignsForm({ initialData, onSubmit }: VitalSignsFormProps) {
 
   function handleChange(key: string, value: string) {
     setVitals((prev) => ({ ...prev, [key]: value }));
+
+    // Validate vital signs ranges and show warnings
+    if (value && value.trim() !== '') {
+      const numValue = parseFloatSafe(value, 0, key);
+      if (numValue > 0) {
+        // Map keys to validation format
+        const validationKey = key === 'systolic' ? 'systolic_bp' :
+                             key === 'diastolic' ? 'diastolic_bp' :
+                             key;
+
+        const validation = validateVitalSign(validationKey as any, numValue);
+        if (!validation.valid && validation.warning) {
+          toast.warning(validation.warning, {
+            duration: 4000,
+            id: `vital-warning-${key}`, // Prevent duplicate toasts
+          });
+        }
+      }
+    }
   }
 
-  const bmi = calculateBMI(parseFloat(vitals.weight), parseFloat(vitals.height));
-  const bmiNum = parseFloat(bmi);
-  const bmiCategory = !isNaN(bmiNum) ? getBMICategory(bmiNum) : null;
+  const bmi = calculateBMI(
+    parseFloatSafe(vitals.weight, 0, 'Weight'),
+    parseFloatSafe(vitals.height, 0, 'Height')
+  );
+  const bmiNum = parseFloatSafe(bmi, 0, 'BMI');
+  const bmiCategory = bmiNum > 0 ? getBMICategory(bmiNum) : null;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -127,7 +152,7 @@ export function VitalSignsForm({ initialData, onSubmit }: VitalSignsFormProps) {
                 onClick={() => {
                   const data: Record<string, number> = {};
                   Object.entries(vitals).forEach(([k, v]) => {
-                    if (v) data[k] = parseFloat(v);
+                    if (v) data[k] = parseFloatSafe(v, 0, k);
                   });
                   onSubmit?.(data as unknown as VitalSignsData);
                 }}
@@ -141,8 +166,8 @@ export function VitalSignsForm({ initialData, onSubmit }: VitalSignsFormProps) {
             {vitalFields.map((field) => {
               const Icon = field.icon;
               const value = vitals[field.key];
-              const numValue = parseFloat(value);
-              const abnormal = value && !isNaN(numValue) && isAbnormal(field.key, numValue);
+              const numValue = parseFloatSafe(value, 0, field.label);
+              const abnormal = value && numValue > 0 && isAbnormal(field.key, numValue);
 
               return (
                 <div key={field.key}>
@@ -226,8 +251,8 @@ export function VitalSignsForm({ initialData, onSubmit }: VitalSignsFormProps) {
             {vitalFields
               .filter((f) => vitals[f.key])
               .map((field) => {
-                const value = parseFloat(vitals[field.key]);
-                const abnormal = !isNaN(value) && isAbnormal(field.key, value);
+                const value = parseFloatSafe(vitals[field.key], 0, field.label);
+                const abnormal = value > 0 && isAbnormal(field.key, value);
                 return (
                   <div
                     key={field.key}
