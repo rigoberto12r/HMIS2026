@@ -12,7 +12,7 @@ RUN npm config set fetch-retry-maxtimeout 120000 && \
 
 # Instalar dependencias primero (mejor cache layer)
 COPY package.json package-lock.json ./
-RUN npm ci --prefer-offline --no-audit
+RUN npm ci --prefer-offline --no-audit --legacy-peer-deps
 
 # Copiar el resto del código
 COPY . .
