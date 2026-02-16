@@ -70,6 +70,43 @@ function CardHeader({ className, title, subtitle, action, ...props }: CardHeader
   );
 }
 
+// ─── Card Title ─────────────────────────────────────────
+
+function CardTitle({
+  className,
+  children,
+  ...props
+}: HTMLAttributes<HTMLHeadingElement>) {
+  return (
+    <h3
+      className={cn(
+        'text-lg font-semibold text-surface-900 dark:text-surface-50',
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </h3>
+  );
+}
+
+// ─── Card Description ───────────────────────────────────
+
+function CardDescription({
+  className,
+  children,
+  ...props
+}: HTMLAttributes<HTMLParagraphElement>) {
+  return (
+    <p
+      className={cn('text-sm text-surface-500 mt-0.5', className)}
+      {...props}
+    >
+      {children}
+    </p>
+  );
+}
+
 // ─── Card Content ───────────────────────────────────────
 
 function CardContent({
@@ -175,5 +212,5 @@ function KpiCard({ title, value, change, changeType = 'neutral', icon: Icon, ico
   );
 }
 
-export { Card, CardHeader, CardContent, CardFooter, KpiCard };
+export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter, KpiCard };
 export type { CardProps, CardHeaderProps, KpiCardProps };

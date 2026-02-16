@@ -19,13 +19,11 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
 
-  // Skip ESLint during build (CI runs eslint separately)
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
+  // Turbopack configuration (Next.js 16 default)
+  // Empty config allows webpack config as fallback
+  turbopack: {},
 
   // Performance optimizations
-  swcMinify: true,
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production',
   },
