@@ -7,11 +7,22 @@ export interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElemen
   label?: string;
   error?: string;
   helperText?: string;
+  onValueChange?: (value: string) => void; // Radix UI-style compatibility
 }
 
 const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
-  ({ className, label, error, helperText, children, ...props }, ref) => {
+  ({ className, label, error, helperText, children, onValueChange, onChange, ...props }, ref) => {
     const id = props.id || props.name;
+
+    // Handle both native onChange and Radix-style onValueChange
+    const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+      if (onChange) {
+        onChange(e);
+      }
+      if (onValueChange) {
+        onValueChange(e.target.value);
+      }
+    };
 
     return (
       <div className="w-full">
@@ -38,6 +49,7 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           )}
           aria-invalid={!!error}
           aria-describedby={error ? `${id}-error` : helperText ? `${id}-helper` : undefined}
+          onChange={handleChange}
           {...props}
         >
           {children}
@@ -61,4 +73,84 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
 
 Select.displayName = 'Select';
 
-export { Select };
+// ─── Radix-style Select Components (for compatibility) ───
+
+interface SelectTriggerProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  children: React.ReactNode;
+}
+
+interface SelectValueProps {
+  placeholder?: string;
+}
+
+interface SelectContentProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
+interface SelectItemProps {
+  value: string;
+  children: React.ReactNode;
+  className?: string;
+}
+
+const SelectTrigger = React.forwardRef<HTMLButtonElement, SelectTriggerProps>(
+  ({ className, children, ...props }, ref) => {
+    return (
+      <button
+        ref={ref}
+        type="button"
+        className={cn(
+          'flex h-10 w-full items-center justify-between rounded-lg border border-surface-300',
+          'bg-white dark:bg-surface-100 px-3 py-2 text-sm',
+          'focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500',
+          'disabled:cursor-not-allowed disabled:opacity-50',
+          'dark:border-surface-600',
+          className
+        )}
+        {...props}
+      >
+        {children}
+      </button>
+    );
+  }
+);
+
+SelectTrigger.displayName = 'SelectTrigger';
+
+function SelectValue({ placeholder }: SelectValueProps) {
+  return <span className="text-surface-500">{placeholder}</span>;
+}
+
+function SelectContent({ children, className }: SelectContentProps) {
+  return (
+    <div
+      className={cn(
+        'relative z-50 min-w-[8rem] overflow-hidden rounded-lg border border-surface-200',
+        'bg-white dark:bg-surface-100 text-surface-900 shadow-md',
+        'dark:border-surface-700',
+        className
+      )}
+    >
+      <div className="p-1">{children}</div>
+    </div>
+  );
+}
+
+function SelectItem({ value, children, className }: SelectItemProps) {
+  return (
+    <div
+      data-value={value}
+      className={cn(
+        'relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm',
+        'outline-none hover:bg-surface-100 dark:hover:bg-surface-200',
+        'focus:bg-surface-100 dark:focus:bg-surface-200',
+        className
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+export { Select, SelectTrigger, SelectValue, SelectContent, SelectItem };

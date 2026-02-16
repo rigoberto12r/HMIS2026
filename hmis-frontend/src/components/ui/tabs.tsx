@@ -12,11 +12,16 @@ export interface Tab {
 }
 
 interface TabsProps {
-  tabs: Tab[];
+  tabs?: Tab[]; // Optional for Radix-style usage
   activeTab?: string;
   onTabChange?: (tabId: string) => void;
   variant?: 'default' | 'pills' | 'underline';
   className?: string;
+  // Radix UI-style props (for compatibility)
+  children?: ReactNode;
+  value?: string;
+  onValueChange?: (value: string) => void;
+  defaultValue?: string;
 }
 
 interface TabPanelsProps {
@@ -38,20 +43,35 @@ export function Tabs({
   onTabChange,
   variant = 'default',
   className,
+  children,
+  value,
+  onValueChange,
+  defaultValue,
 }: TabsProps) {
-  const [internalActiveTab, setInternalActiveTab] = useState(tabs[0]?.id || '');
-  const activeTab = controlledActiveTab ?? internalActiveTab;
+  // Support both Radix-style (value/onValueChange) and array-based (activeTab/onTabChange)
+  const isRadixStyle = !!children;
+  const [internalActiveTab, setInternalActiveTab] = useState(
+    defaultValue || value || tabs?.[0]?.id || ''
+  );
+  const activeTab = value || (controlledActiveTab ?? internalActiveTab);
 
   const handleTabClick = (tabId: string) => {
-    const tab = tabs.find(t => t.id === tabId);
+    const tab = tabs?.find(t => t.id === tabId);
     if (tab?.disabled) return;
 
-    if (onTabChange) {
+    if (onValueChange) {
+      onValueChange(tabId);
+    } else if (onTabChange) {
       onTabChange(tabId);
     } else {
       setInternalActiveTab(tabId);
     }
   };
+
+  // For Radix-style usage with children
+  if (isRadixStyle) {
+    return <div className={className}>{children}</div>;
+  }
 
   const variantStyles = {
     default: {
@@ -96,7 +116,7 @@ export function Tabs({
 
   return (
     <div className={cn('flex gap-1', styles.container, className)} role="tablist">
-      {tabs.map((tab) => {
+      {tabs?.map((tab) => {
         const isActive = activeTab === tab.id;
 
         return (
@@ -151,6 +171,74 @@ export function TabPanel({ id, children, className }: TabPanelProps) {
       id={`panel-${id}`}
       aria-labelledby={`tab-${id}`}
       className={cn('focus:outline-none', className)}
+    >
+      {children}
+    </div>
+  );
+}
+
+// ─── Radix-style Tabs Components (for compatibility) ───
+
+interface TabsListProps {
+  children: ReactNode;
+  className?: string;
+}
+
+interface TabsTriggerProps {
+  value: string;
+  children: ReactNode;
+  className?: string;
+}
+
+interface TabsContentProps {
+  value: string;
+  children: ReactNode;
+  className?: string;
+}
+
+export function TabsList({ children, className }: TabsListProps) {
+  return (
+    <div
+      role="tablist"
+      className={cn(
+        'inline-flex h-10 items-center justify-center rounded-lg bg-surface-100 dark:bg-surface-200 p-1',
+        className
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+export function TabsTrigger({ value, children, className }: TabsTriggerProps) {
+  return (
+    <button
+      role="tab"
+      data-value={value}
+      className={cn(
+        'inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5',
+        'text-sm font-medium ring-offset-background transition-all',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2',
+        'disabled:pointer-events-none disabled:opacity-50',
+        'data-[state=active]:bg-white data-[state=active]:text-surface-900 data-[state=active]:shadow-sm',
+        'dark:data-[state=active]:bg-surface-100',
+        className
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+export function TabsContent({ value, children, className }: TabsContentProps) {
+  return (
+    <div
+      role="tabpanel"
+      data-value={value}
+      className={cn(
+        'mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2',
+        className
+      )}
     >
       {children}
     </div>
