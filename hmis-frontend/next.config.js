@@ -19,6 +19,10 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
 
+  // Turbopack config (required in Next.js 16 when webpack config exists)
+  // Empty config allows webpack as fallback for custom optimizations
+  turbopack: {},
+
   // Performance optimizations
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production',
