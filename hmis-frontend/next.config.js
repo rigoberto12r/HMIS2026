@@ -19,18 +19,31 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
 
-  // Turbopack configuration (Next.js 16 default)
-  // Empty config allows webpack config as fallback
-  turbopack: {},
-
   // Performance optimizations
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production',
+    // React compiler optimizations (future)
+    reactRemoveProperties: process.env.NODE_ENV === 'production' ? { properties: ['^data-testid$'] } : false,
   },
+
+  // Compress responses
+  compress: true,
 
   // Experimental features for better performance
   experimental: {
-    optimizePackageImports: ['lucide-react', 'recharts', '@tanstack/react-query', 'framer-motion'],
+    optimizePackageImports: [
+      'lucide-react',
+      'recharts',
+      '@tanstack/react-query',
+      'framer-motion',
+      'date-fns',
+      'sonner',
+      'react-hook-form',
+    ],
+    // Optimize CSS imports
+    optimizeCss: true,
+    // Enable partial prerendering for better performance
+    ppr: false, // Set to true when stable
   },
 
   // Production source maps (smaller)
@@ -108,6 +121,27 @@ const nextConfig = {
             priority: 40,
             enforce: true,
           },
+          // Separate chunk for recharts (heavy charting library)
+          recharts: {
+            name: 'recharts',
+            test: /[\\/]node_modules[\\/](recharts|d3-[\w-]+)[\\/]/,
+            priority: 35,
+            reuseExistingChunk: true,
+          },
+          // Separate chunk for DICOM libraries (very heavy, optional deps)
+          dicom: {
+            name: 'dicom',
+            test: /[\\/]node_modules[\\/](cornerstone-core|cornerstone-wado-image-loader|dicom-parser)[\\/]/,
+            priority: 35,
+            reuseExistingChunk: true,
+          },
+          // Separate chunk for TipTap (rich text editor)
+          tiptap: {
+            name: 'tiptap',
+            test: /[\\/]node_modules[\\/](@tiptap|prosemirror-[\w-]+)[\\/]/,
+            priority: 35,
+            reuseExistingChunk: true,
+          },
           // Separate chunk for large libraries
           lib: {
             test(module) {
@@ -146,6 +180,13 @@ const nextConfig = {
           },
         },
       };
+
+      // Reduce module concatenation overhead
+      config.optimization.concatenateModules = true;
+
+      // Tree shaking is enabled by default in Next.js 16
+      // Note: usedExports conflicts with cacheUnaffected (Next.js 16 default)
+      config.optimization.sideEffects = true;
     }
 
     return config;
